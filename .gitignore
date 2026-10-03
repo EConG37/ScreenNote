@@ -1,0 +1,22 @@
+**/bin/
+**/obj/
+.build/
+output/
+**/data/
+*.user
+
+# Local runtime and models are distributed with the Windows release package.
+/src/ScreenNote/ocr-runtime/
+/src/ScreenNote/translation-models/
+
+# Local settings, browser pairing and development credentials.
+settings.json
+browser-pairing.json
+.env
+.env.*
+*.pfx
+*.p12
+.agents/
+.codex/
+__pycache__/
+*.pyc

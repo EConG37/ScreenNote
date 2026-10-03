@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup><BaseIntermediateOutputPath>obj/storage-location-validation/</BaseIntermediateOutputPath></PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings>
+    <OutputPath>bin/storage-location-validation/</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="storage-location-validation.cs" />
+    <Compile Include="../src/ScreenNote/StorageLocationService.cs" Link="StorageLocationService.cs" />
+    <Compile Include="../src/ScreenNote/HistoryService.cs" Link="HistoryService.cs" />
+    <Compile Include="../src/ScreenNote/AnnotationSurface.cs" Link="AnnotationSurface.cs" />
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

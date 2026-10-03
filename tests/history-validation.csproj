@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>obj/history-validation/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <OutputPath>bin/history-validation/</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="history-validation.cs" />
+    <Compile Include="../src/ScreenNote/HistoryService.cs" Link="HistoryService.cs" />
+    <Compile Include="../src/ScreenNote/AnnotationSurface.cs" Link="AnnotationSurface.cs" />
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

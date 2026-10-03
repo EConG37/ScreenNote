@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ocr-validation.cs" />
+    <Compile Include="..\src\ScreenNote\OcrService.cs" Link="OcrService.cs" />
+    <Compile Include="..\src\ScreenNote\TextCleanup.cs" Link="TextCleanup.cs" />
+    <None Include="..\src\ScreenNote\ocr-worker.ps1" Link="ocr-worker.ps1" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+</Project>

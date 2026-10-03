@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup><BaseIntermediateOutputPath>obj/feature-polish/</BaseIntermediateOutputPath></PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><OutputPath>bin/feature-polish/</OutputPath></PropertyGroup>
+  <ItemGroup><Compile Include="feature-polish.cs"/><ProjectReference Include="../src/ScreenNote/ScreenNote.csproj"/><None Include="../src/ScreenNote/App.xaml" Link="test-resources.xaml" CopyToOutputDirectory="PreserveNewest"/></ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>
