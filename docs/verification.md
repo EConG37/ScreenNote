@@ -353,3 +353,13 @@ DeepSeek、ChatGPT、豆包的真实登录页面及上传速度仍未实测。�
 - 在裁剪后的 payload 上实跑功能回归：`ocr-runtime/python.exe -I -B rapid-ocr-worker.py` 对合成中英文图片识别正确（置信度 0.98，约 2 s），说明去掉 ffmpeg 解码 DLL 与 sympy 后 OpenCV／RapidOCR 仍可用；`translation-worker.py` 中→英、英→中各一次成功（约 0.6 s／0.4 s）。
 - 构建脚本改用 `Substring` 计算相对路径，不再依赖只有 PowerShell 7 才提供的 `[IO.Path]::GetRelativePath`；本次整条打包流程在 Windows PowerShell 5.1 上跑通。
 - 证据：`.build/installer/0.10.2/build-report.json`、`payload-manifest.json`、`payload-trim.txt`、`compiler.log`、`output/ScreenNote-0.10.2-Setup-x64.exe.sha256`；验证脚本 `.build/verify-installer.ps1` 覆盖安装、逐文件哈希比对与卸载。
+
+
+## 0.10.2 免安装版（2026-10-28）
+
+- 用同一份已裁剪 payload 打包 `output/ScreenNote-0.10.2-portable-x64.zip`：1539 个文件加一份 `使用说明.txt`，306.16 MB（sha256 EFDC5551…）。包内是单个 `ScreenNote-0.10.2-portable` 文件夹，不写注册表、不需要安装。
+- 打包后回读 zip 与 payload 逐项比对 SHA-256：1539/1539 一致，缺失与哈希不符均为 0；另扫全包，构建机路径（`E:\code building`、用户名、`C:\Users\`）命中 0。
+- 解压实测：解压到空目录后直接启动，进程存活 10 s、主窗口标题为「拾屏 · 截图历史」、加载 171 个模块、首次运行自动创建 `data` 目录；文件夹内不生成 `settings.json`，设置仍写入 `%LOCALAPPDATA%\ScreenNote`，与设计一致。
+- 体积说明：deflate 逐文件压缩把 592.8 MB 压到 306 MB，比 LZMA 的安装包大 54 MB；两份翻译权重（约 136 MB）在两种方式下都接近不可压缩。
+- 上传后核验：匿名 range 请求返回 206，Release 资产 digest 为 `sha256:efdc5551…`，`.sha256` 文件内容与本地一致。
+- 证据：`scripts/build-portable.ps1`（打包与校验逻辑）、`installer/portable-readme.txt`（包内说明）、`output/ScreenNote-0.10.2-portable-x64.zip.sha256`。
