@@ -1,3 +1,60 @@
+# v0.9.2 Oil UI 工具栏精修
+
+日期：2026-10-27。沿用已确定的单行布局与红／绿／黄语义，用 Oil UI 0.26.0 打磨局部层级。绿色实色复制按钮为主操作，回车提示可见；取消去掉底色，编辑保留浅黄色。点击区域由 34 增至 36 逻辑像素，统一悬停、按下、焦点与禁用状态。
+
+- 84 项功能及布局检查通过，1280／900／640 逻辑宽度下所有按钮保持单行且完整可见；截图动作、快捷键和 100%／200% 坐标检查通过。
+- 使用合成材料查看默认、禁用与键盘焦点效果，并检查 200% 渲染。局部低风险样式改动由主 Agent 自检；不改变截图流程、不增加出场动画，按下时即时轻微下沉。
+- 证据：`.build/toolbar-oil-ui/brief.md`、`.build/toolbar-oil-ui/before.png`、`.build/toolbar-oil-ui/visual-final/feature-polish.json`、`.build/toolbar-oil-ui/visual-final/toolbar-default-200.png`、`.build/toolbar-oil-ui/visual-final/toolbar-keyboard-focus.png`。
+
+---
+
+# v0.9.1 单行截图工具栏
+
+日期：2026-10-27。取消、复制、编辑改为统一图标与圆角样式，使用柔和的红／绿／黄配色；工具栏所有操作保持同一行。较窄屏幕下辅助工具收起文字，主要操作保留完整名称和快捷键。
+
+- 84 项功能与布局检查通过，包含 1280／900／640 逻辑宽度的同排显示、所有入口不裁切，以及原有标注、历史、复制与编辑路径。截图动作检查包含取消、复制、编辑、GIF、滚动截图、快捷键及 100%／200% 坐标。
+- 视觉自检采用合成截图，查看完整文字与紧凑图标两种布局；局部样式改动未增加动画，未进行独立评审。
+- 证据：`.build/toolbar-single-row-final/feature-polish.json`、`.build/toolbar-single-row-final/capture-toolbar-1280.png`、`.build/toolbar-single-row-final/capture-toolbar-640.png`。
+
+---
+
+# v0.9.0 GIF 压缩、滚动长图与台词拼图
+
+日期：2026-10-27。本地版本，GitHub Releases 尚未发布。
+
+- GIF 默认生成微信小图，目标 950,000 字节以下；合并重复帧、按变化区域编码并逐步降低尺寸／帧率／色数，完整原文件另存保留。支持已有 GIF 压缩和取消。用户原有 10,748,082 字节、913×514、57 帧的样本压为 615,502 字节、320×180、29 帧，总时长均为 6.18 秒；小字清晰度会下降。
+- 恢复选区内手动向下滚动截图，匹配重叠内容，仅追加新露出的行。无法匹配时保留已有内容并提示减小滚动距离。控制窗口采用非模态显示，实际鼠标滚轮可继续操作原页面。
+- 新增多图与台词拼图，支持历史多选、连续截图和图片导入，台词裁切高度、错位、顺序、输出宽度及四种布局可调；支持复制、PNG 保存与进入编辑，原截图保留。
+- 截图浮动栏改为两排，右下排依次为红色取消、绿色复制、黄色编辑；84 项功能和布局检查通过，包含 1280／900／640 逻辑宽度下完整显示。
+- 24 项合成检查通过：长图逐像素接缝、中文页面、重复／反向／无重叠拒绝；台词底部裁切与布局；GIF 压缩比例、完整时长、最终画面、独立 GDI+ 解码、重复帧、取消、临时文件清理与原文件保留。
+- 11 项实际桌面拼图检查通过：真实鼠标滚轮、长图自动复制与历史保留、台词高度和排序、继续截图返回同一窗口、拼图复制与完成编辑。19 项真实 GIF 录制界面检查、97 项历史与设置回归通过。
+- Release 构建为 0 个错误、0 个警告；打包后的 0.9.0 通过 11 项自检，包含桌面截图 API、图片导出和实际本地中英文 OCR。截图动作检查包含十项操作、颜色、两排布局、GIF／滚动区域、100%／200% 坐标与取消。
+
+证据：`.build/composition-validation-final/result.txt`、`.build/composition-ui-wheel/result.txt`、`.build/composition-ui-wheel/live-scroll.png`、`.build/composition-ui-wheel/collage-workspace.png`、`.build/feature-polish-composition-final/feature-polish.json`、`.build/gif-recording-ui-composition-final/result.txt`、`.build/ui-history-composition-final/ui-history-test.json`、`.build/self-test-composition-stage/self-test.json`。
+
+微信最终是否将粘贴文件展示为动画仍需当前客户端实测，压缩目标并非微信官方通用限制。滚动截图支持向下滚动，需保留重叠并避开固定导航／页脚；实机混合缩放多显示器未新增验证。
+
+以下为历史版本验证记录。
+
+---
+
+# v0.8.0 选区 GIF 录制
+
+日期：2026-10-27。本地构建已生成，GitHub Releases 尚未发布此版本。
+
+- 框选后点击「录制 GIF」或按 Ctrl+G，返回带虚拟桌面偏移的物理像素范围；复用原有移动、缩放及边缘裁切。GIF 不经过静态图片历史与标注导出。
+- 29 项录制检查通过：逐帧自适应调色板、WIC 与独立 GDI+ 多帧解码、帧时长、循环标记、真实时间播放、慢采集、分辨率限制、停止与取消、文件大小限制、异常清理及文件剪贴板格式。
+- 19 项本机桌面界面检查通过：临时红蓝色块实录、控制窗口覆盖在选区内仍不出现在 GIF 中、停止后自动复制完整 GIF 文件、关闭结果仍可粘贴、倒计时和录制中的取消清理、从截图窗口进入录制、重复截图互斥与工作台恢复。只保存测试色块；不向聊天软件发送测试文件。
+- 截图动作检查通过，包含新增按钮和 Ctrl+G、负坐标虚拟桌面、原有复制／编辑／AI／OCR／翻译／总结／高亮、100%／200% 合成缩放和取消。78 项功能与布局检查通过，九项浮动操作在 1280／900／640 逻辑宽度下完整显示。
+- GIF 随资料位置迁移检查通过，保留原文件、跳过未完成文件。97 项截图历史与设置流程回归通过；已发布到本地的 0.8.0 程序通过 11 项自检，包括实际桌面截图 API（不保存桌面图像）、标注、导出与本地中英文 OCR。Release 构建为 0 个错误、0 个警告。
+- 录制与复制通过不代表每个聊天软件都支持直接粘贴动画；具体客户端的粘贴、附件展示和发送仍需实际使用验收。实机多屏不同缩放比例未新增验证。
+
+证据：`.build/gif-recording-validation-final/result.txt`、`.build/gif-recording-ui-release.txt`、`.build/gif-recording-ui-release/gif-result.png`、`.build/feature-polish-gif/feature-polish.json`、`.build/ui-history-gif-release/ui-history-test.json`、`.build/published-self-test-gif-release/self-test.json`。可运行 `tests/gif-recording-validation.csproj` 复现合成检查，实际桌面检查为 `tests/gif-recording-ui.csproj`，需要可访问本机桌面的会话；两者可传入独立输出文件夹。
+
+格式实现依据 [GIF89a 规范](https://www.w3.org/Graphics/GIF/spec-gif89a.txt)，使用逐帧局部调色板及图形控制扩展。复制采用 [Windows 文件剪贴板格式](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard)，避免静态位图格式使接收端丢失动画。控制条排除采用 [SetWindowDisplayAffinity](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)，需要 Windows 10 2004 或更新版本。
+
+---
+
 # v0.7.2 移除滚动截图
 
 日期：2026-10-03。按用户要求移除滚动截图，已有截图和长图历史继续保留。
@@ -9,7 +66,7 @@
 
 - 发布版 11 项自检通过，正式桌面版本已更新至 0.7.2。实际桌面入口、快捷键与设置保存通过；主界面滚动截图按钮与截图浮动栏入口均确认不存在。更新前 2 张截图的原图、当前图、标注/OCR 文档和索引校验值不变，配对校验值不变。程序、OCR 与翻译组件和双向模型的校验值与已自检发布版一致。证据：`.build/publish-stage-072.txt`、`.build/desktop-install-072.json`、`.build/settings-install-072.json`、`.build/actual-capture-toolbar-072.json`。
 
-以下为历史版本验证记录，当前功能以 0.7.2 为准。
+以下为更早的历史版本验证记录。
 
 ---
 
@@ -253,3 +310,46 @@ DeepSeek、ChatGPT、豆包的真实登录页面及上传速度仍未实测。�
 - 界面与功能检查：92 项，包括九个浮动按钮在 1280/900/640 逻辑宽度下完整显示、内联高亮直接进入编辑器，以及此前 OCR、滚动拼接、历史与设置行为。
 - 浏览器模拟检查：44 项，新增离线启动不创建 WebSocket、重试期间保留配对、恢复后无需新配对，以及预检发现授权撤销时不建立实时连接。真实登录网页附件上传仍需实际使用验证。
 - 历史流程回归：截图替换、复制不打开编辑、可编辑标注与文字、迁移、单张及批量删除，全部使用隔离资料。
+
+
+## 0.10.0 当前本机验证（2026-10-27）
+
+- 新工作区 29 项检查：窗口悬停识别与原生单击、负坐标桌面、选区上方工具、实际鼠标画箭头、撤销重做、逐张台词上下边界、切换及排序后保留裁切、连续框选、大图查看、缩放，以及缺段时禁止完成和回退恢复。
+- 浮动栏与既有功能 84 项检查：1280／900／640 逻辑宽度下保持一行，取消→编辑→复制顺序与可见性、聚焦高亮和历史保留等。独立截图操作检查覆盖十个入口、100／200% DPI、快捷键与取消。
+- 真实桌面滚动与拼图 11 项：一次输入 -2400 滚轮单位（20 格），排队采集至完成，再核对长图高度与实际页面滚动距离，随后验证继续截图、预览、排序、复制和保存到编辑历史。原有合成与 GIF 压缩 24 项检查通过。
+- 浏览器 JavaScript 49 项检查：PNG 粘贴入口、保留草稿、没有附件时不误报、重复注入不重复处理、已有网页重连和夸克独立连接页。原生通信分别以 chrome-extension:// 与 extension:// 跑完整的 103 项传输检查，含实时通知、配对、鉴权、超时与单次领取。
+- 实机夸克原先未安装拾屏扩展，已加载输出目录内 0.7.0 并重新配对；扩展连接页显示已连接，桌面状态显示「浏览器扩展已连接」，本机实时连接已建立。原先失效的配对已保留加密备份；截图、GIF、设置文件的升级前后哈希保持一致。
+- DeepSeek 当前停留在登录页，实际账号附件上传未执行，未上传私人图片或发送聊天。登录后仍须以真实附件显示验收，不将模拟测试当作实际账号上传成功。
+- 0.10.0 Release 构建零警告、零错误，运行中的旧版通过自身托盘菜单保存退出，已更新并启动新版。记录位于 .build/feature-expansion/ 与 .build/install-feature-expansion.json。
+
+
+## 0.10.1 原生复制粘贴（2026-10-27）
+
+- 桌面截图、编辑图片、历史多图、OCR 文字与总结已统一改用 BrowserPasteService。桌面不再启动本地扩展连接服务，设置不再提供配对入口；新的分发包不再包含浏览器扩展。
+- 原生剪贴板与浏览器兼容性 22 项检查通过：真实 Chromium 从 Windows 剪贴板读到两张有效 PNG，签名、像素与顺序正确；文字可读取并追加；目标地址校验、前台保护、剪贴板变化、取消、未命名登录输入框保护通过。
+- 上述兼容性检查使用独立本地页面与合成图片。测试浏览器的调试接口仅用于读取剪贴板验证，不用于产品发送流程；该结果不能算作系统 Ctrl+V 或 AI 网站上传的完整通过。
+- 本机当前前台程序阻止测试进程自动激活浏览器，完整原生 Ctrl+V 测试因此停在保护分支。程序保留剪贴板并提示手动粘贴，没有绕过前台限制。
+- 实际 DeepSeek 页面 2 项检查通过：不能自动继续时给出 Ctrl+V 提示，合成图片保留 Bitmap 与 PNG 两种格式。未确认已登录账号的附件上传成功，未发送聊天或上传私人截图。
+- 界面与截图功能 84 项检查通过；截图、OCR 修改、历史恢复、迁移与删除 97 项检查通过。历史检查需在可访问桌面的会话中运行，受限会话无法创建屏幕选择框。
+- Release 构建零警告、零错误。测试记录位于 .build/native-paste-final/ 与 .build/native-paste-regression/，安装记录位于 .build/install-native-paste.json。
+
+
+## 0.10.2 简化提醒与工具栏（2026-10-27）
+
+- 去掉发送截图时的「截图已保留」进度／结果提醒窗口。截图、编辑区及历史统一使用原生复制粘贴流程，结果只更新现有状态栏。
+- 去掉截图时的操作说明框、关闭主窗口时的托盘气泡提醒，以及重复启动时的「已经运行」提示框。
+- 主窗口与截图浮动栏均移除「总结」，同时清理对应提示词与处理逻辑。取消、编辑截屏、复制截屏仍按单行顺序排列；GIF 和滚动截图枚举编号保持原值。
+- 截图动作验证通过：剩余 9 个按钮、截图边界、100%／200% 坐标、GIF／滚动区域、快捷键和取消行为正常。界面、标注和工具栏布局 75 项检查通过。
+- 本次未发送 AI 聊天或重新验证网站附件上传。构建与安装记录位于 .build/quiet-ui/ 和 .build/install-quiet-ui.json。
+
+
+---
+
+## 0.10.2 安装包裁剪（2026-10-28）
+
+- 从安装包中删掉程序从不加载的内容：除简繁中文外的 11 套 .NET 框架语言资源（cs／de／es／fr／it／ja／ko／pl／pt-BR／ru／tr）、`ocr-runtime` 下各 Python 包的 `tests` 目录、`sympy` 与 `mpmath`、OpenCV 的 `opencv_videoio_ffmpeg*_64.dll` 与 `haarcascade_*.xml`、以及 `*.pyi` 类型存根。裁剪在 `dotnet publish` 之后执行，删除清单写入 `.build/installer/0.10.2/payload-trim.txt`。
+- payload 由 4064 个文件／676.5 MB 降到 1539 个文件／592.8 MB；安装包由 268.94 MB（sha256 8BA0E3E6…）降到 252.13 MB（sha256 6447D89B…）。删掉的 83.7 MB 大多是高度可压缩的文本与重复资源，压缩后只省 16.8 MB，说明体积大头是两份 79 MB 的离线翻译权重。
+- 静默安装 exit 0；1539/1539 按清单逐文件 SHA-256 一致，缺失、大小不符、哈希不符、多余文件均为 0；includedFrameworks 为 Microsoft.NETCore.App 10.0.14 与 Microsoft.WindowsDesktop.App 10.0.14；静默卸载 exit 0 且目录清理干净。
+- 在裁剪后的 payload 上实跑功能回归：`ocr-runtime/python.exe -I -B rapid-ocr-worker.py` 对合成中英文图片识别正确（置信度 0.98，约 2 s），说明去掉 ffmpeg 解码 DLL 与 sympy 后 OpenCV／RapidOCR 仍可用；`translation-worker.py` 中→英、英→中各一次成功（约 0.6 s／0.4 s）。
+- 构建脚本改用 `Substring` 计算相对路径，不再依赖只有 PowerShell 7 才提供的 `[IO.Path]::GetRelativePath`；本次整条打包流程在 Windows PowerShell 5.1 上跑通。
+- 证据：`.build/installer/0.10.2/build-report.json`、`payload-manifest.json`、`payload-trim.txt`、`compiler.log`、`output/ScreenNote-0.10.2-Setup-x64.exe.sha256`；验证脚本 `.build/verify-installer.ps1` 覆盖安装、逐文件哈希比对与卸载。

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Diagnostics;
@@ -16,6 +16,7 @@ if (args.Contains("--launch-browser-check"))
     return;
 }
 
+var extensionScheme = args.Contains("--extension-origin") ? "extension" : "chrome-extension";
 using var service = new AiBridgeService(0, openTarget: _ => { });
 service.Start();
 Require(service.ListeningPort > 0 && !service.Status.Contains("占用"), "Harness uses an isolated ephemeral loopback port.");
@@ -26,7 +27,7 @@ async Task<(HttpStatusCode Status, JsonElement Data)> Post(string path, object b
 {
     using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json") };
     request.Headers.Add("X-ScreenNote-Extension", extensionId ?? extension);
-    request.Headers.Add("Origin", origin ?? $"chrome-extension://{extensionId ?? extension}");
+    request.Headers.Add("Origin", origin ?? $"{extensionScheme}://{extensionId ?? extension}");
     if (token is not null) request.Headers.Authorization = new("Bearer", token);
     if (host is not null) request.Headers.Host = host;
     using var response = await http.SendAsync(request);
@@ -148,7 +149,7 @@ await BrowserStartupChecks.Run();
 async Task<ClientWebSocket> ConnectEvents()
 {
     var socket = new ClientWebSocket();
-    socket.Options.SetRequestHeader("Origin", $"chrome-extension://{extension}");
+    socket.Options.SetRequestHeader("Origin", $"{extensionScheme}://{extension}");
     await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{service.ListeningPort}/events"), CancellationToken.None);
     await SendEvent(socket, new { type = "auth", token, extensionId = extension });
     Require((await ReceiveEvent(socket)).GetProperty("type").GetString() == "ready", "Paired real-time channel is ready.");

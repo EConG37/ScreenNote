@@ -1,4 +1,8 @@
+(() => {
 "use strict";
+if (globalThis.__screenNoteContentVersion === "0.7.0") return;
+globalThis.__screenNoteContentVersion = "0.7.0";
+
 
 let screenNoteDelivering = false;
 let screenNotePolling = false;
@@ -171,7 +175,7 @@ function screenNoteAttachmentVisible(fileName) {
 function screenNoteFindUpload(editor) {
   const inputs = [...document.querySelectorAll('input[type="file"]')].filter(input => {
     const accept = (input.accept || "").toLowerCase();
-    return !input.disabled && (!accept || /image|\.png|\*/.test(accept));
+    return !input.disabled && (!accept || /image|\.(?:png|jpe?g|webp)|\*/.test(accept));
   });
   const composer = editor.closest('form, [data-testid="composer"], [data-testid="chat-input"]');
   const nearby = composer ? inputs.filter(input => composer.contains(input)) : [];
@@ -230,7 +234,20 @@ async function screenNoteDeliverImage(job) {
   if (!editor) return { success: false, message: `请先登录 ${screenNoteTargetName(target)} 并打开聊天页面。` };
   const files = screenNoteImageFiles(job);
   let input = screenNoteFindUpload(editor);
-  if (!input) return { success: false, verifiedCount: 0, expectedCount: files.length, message: "没有找到唯一的图片上传入口。截图已保留，请手动粘贴或上传。" };
+  if (!input) {
+    // DeepSeek can mount its file input only after opening the attachment menu.
+    // The composer already supports pasting PNGs; preserve any text draft.
+    if (typeof ClipboardEvent === "function") {
+      const transfer = new DataTransfer();
+      for (const file of files) transfer.items.add(file);
+      editor.focus();
+      editor.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+      await screenNoteWaitAttachments(files, Math.min(Date.now() + 10000, job.expiresAt || Infinity));
+      // Never retry a paste with a file input: a slow upload could be duplicated.
+      return screenNoteImageResult(files, target);
+    }
+    return { success: false, verifiedCount: 0, expectedCount: files.length, message: "网页尚未显示图片上传入口。请先登录 DeepSeek 并打开新对话，再重试；截图仍保留在历史中。" };
+  }
   const deadline = Math.min(Date.now() + 35000, job.expiresAt || Infinity);
   if (input.multiple || files.length === 1) {
     screenNoteAttachFiles(input, files);
@@ -306,3 +323,5 @@ async function screenNotePoll() {
 setInterval(() => { void screenNotePoll(); }, 1000);
 document.addEventListener("visibilitychange", () => { void screenNotePoll(); });
 void screenNotePoll();
+
+})();

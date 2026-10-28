@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup><BaseIntermediateOutputPath>obj/browser-paste/</BaseIntermediateOutputPath></PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><OutputPath>bin/browser-paste/</OutputPath></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="browser-paste.cs"/>
+    <Compile Include="../src/ScreenNote/BrowserPasteService.cs" Link="BrowserPasteService.cs"/>
+    <Compile Include="../src/ScreenNote/BrowserPasteAutomation.cs" Link="BrowserPasteAutomation.cs"/>
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

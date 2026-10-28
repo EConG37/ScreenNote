@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "ScreenNote · AI 网页连接",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "把 ScreenNote 的文字或多张截图放入 DeepSeek、ChatGPT、豆包网页草稿，由你检查并发送。",
   "minimum_chrome_version": "120",
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": ["https://chat.deepseek.com/*", "https://chatgpt.com/*", "https://www.doubao.com/chat/*", "http://127.0.0.1/*"],
   "background": { "service_worker": "service-worker.js" },
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },

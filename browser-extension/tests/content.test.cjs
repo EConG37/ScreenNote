@@ -44,7 +44,9 @@ function harness(initial = "", host = "chat.deepseek.com") {
     atob: value => Buffer.from(value, "base64").toString("binary"), Uint8Array,
     NodeFilter: { SHOW_TEXT: 4 }, Date, Number, console
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8"), context);
+  const source = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
+  const names = [...source.matchAll(/(?:async )?function (screenNote\w+)\(/g)].map(match => match[1]);
+  vm.runInContext(source.replace(/\}\)\(\);\s*$/, `${names.map(name => `Object.defineProperty(globalThis, "${name}", { get: () => ${name}, set: value => { ${name} = value; }, configurable: true });`).join("\n")}\n})();`), context);
   context.screenNoteShowToast = () => {};
   return { context, editor, editors, listeners, uploads, attachments };
 }
@@ -100,6 +102,41 @@ test("missing upload entry reports failure; a file property alone never confirms
   const result = await context.screenNoteDeliverImage({ id: "abc", imageBase64: PNG_BASE64 });
   assert.equal(result.success, false);
   assert.equal(context.screenNoteAttachmentVisible("screennote-test.png"), false);
+});
+
+test("DeepSeek lazy upload composer accepts a PNG paste and preserves the existing text draft", async () => {
+  const h = harness("保留现有草稿");
+  h.context.ClipboardEvent = class { constructor(type, options) { this.type = type; Object.assign(this, options); } };
+  let pastes = 0;
+  const dispatch = h.editor.dispatchEvent.bind(h.editor);
+  h.editor.dispatchEvent = event => {
+    if (event.type === "paste") { pastes++; for (const file of event.clipboardData.files) h.attachments.add(file.name); }
+    return dispatch(event);
+  };
+  h.context.screenNoteAttachmentVisible = name => h.attachments.has(name);
+  const result = await h.context.screenNoteDeliverImage(imageJob(2));
+  assert.equal(result.success, true);
+  assert.equal(result.verifiedCount, 2);
+  assert.equal(pastes, 1);
+  assert.equal(h.editor.value, "保留现有草稿");
+  assert.ok(!h.editor.events.includes("submit"));
+});
+
+test("unhandled image paste is not acknowledged and is not retried as a duplicate upload", async () => {
+  const h = harness();
+  h.context.ClipboardEvent = class { constructor(type, options) { this.type = type; Object.assign(this, options); } };
+  const job = imageJob(1); job.expiresAt = Date.now() + 1;
+  const result = await h.context.screenNoteDeliverImage(job);
+  assert.equal(result.success, false);
+  assert.equal(result.verifiedCount, 0);
+  assert.equal(h.editor.events.filter(type => type === "paste").length, 1);
+});
+
+test("reinjection does not register another listener or reset the delivery lock", () => {
+  const h = harness();
+  const source = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
+  vm.runInContext(source, h.context);
+  assert.equal(h.listeners.length, 1);
 });
 
 function addUpload(h, multiple, onChange) {

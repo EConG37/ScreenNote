@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -86,8 +86,12 @@ public partial class MainWindow
         OcrPanel.Visibility = showOcr ? Visibility.Visible : Visibility.Collapsed;
         OcrColumn.Width = new GridLength(showOcr ? 320 : 0); OcrGap.Width = new GridLength(showOcr ? 12 : 0);
         ModeHint.Text = "编辑截屏"; Title = "拾屏 · 截图编辑"; HistoryButton.IsEnabled = true;
-        WindowState = WindowState.Normal;
-        Width = showOcr ? 1260 : 1040; Height = 720; ConstrainToCurrentScreen(); UpdateLayout(); UpdateZoom();
+        if (WindowState != WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+            Width = showOcr ? 1500 : 1360; Height = 920; ConstrainToCurrentScreen();
+        }
+        UpdateLayout(); UpdateZoom();
         RefreshPrimaryActions();
     }
     private void ConstrainToCurrentScreen()
@@ -124,7 +128,7 @@ public partial class MainWindow
         }
         catch (Exception ex) { SetStatus("这条历史无法打开：" + ex.Message); }
     }
-    private void History_Click(object sender, RoutedEventArgs e) { ShowHistory(); SetStatus("勾选截图，用顶部工具栏发送、翻译或总结；双击继续编辑。"); }
+    private void History_Click(object sender, RoutedEventArgs e) { ShowHistory(); SetStatus("勾选截图进行发送或翻译；双击继续编辑。"); }
     private void FinishEditing_Click(object sender, RoutedEventArgs e) { if (SaveCurrentHistory()) Hide(); }
     private void HideOcr_Click(object sender, RoutedEventArgs e) => ShowEditor(false);
     private void EditHistory_Click(object sender, RoutedEventArgs e) { if (sender is Button { Tag: HistoryEntry entry }) OpenHistory(entry); }
@@ -207,6 +211,7 @@ public partial class MainWindow
         var available = HistoryList.SelectedItems.Count > 0 && !_sending && !_changingStorage && !_capturing;
         HistorySendButton.IsEnabled = available; HistoryExportButton.IsEnabled = available;
         HistoryDeleteButton.IsEnabled = available;
+        CollageButton.IsEnabled = !_changingStorage && !_capturing;
         RefreshPrimaryActions();
     }
     private void SelectAllHistory_Click(object sender, RoutedEventArgs e) => HistoryList.SelectAll();
@@ -244,7 +249,7 @@ public partial class MainWindow
                 return selected.Select(entry => { var png = _history.ReadRenderedPng(entry, remaining); remaining -= png.Length; return png; }).ToArray();
             });
             SetStatus($"正在把 {snapshots.Length} 张图片带到 {AiBridgeService.TargetName(target)}…");
-            var result = _bridge == null ? new BridgeDeliveryResult(false, "请先在设置中连接浏览器扩展。") : await _bridge.SendImagesAsync(snapshots, target);
+            var result = await _browserPaste.SendAsync(snapshots, target);
             HistoryResult.Text = result.Message;
             if (generation == _documentGeneration) SetStatus(result.Message);
         }
@@ -259,7 +264,7 @@ public partial class MainWindow
         SetStatus($"正在把 {images.Count} 张图片带到 {AiBridgeService.TargetName(target)}…");
         try
         {
-            var result = _bridge == null ? new BridgeDeliveryResult(false, "请先在设置中连接浏览器扩展。") : await _bridge.SendImagesAsync(images, target);
+            var result = await _browserPaste.SendAsync(images, target);
             HistoryResult.Text = result.Message;
             if (generation == _documentGeneration) SetStatus(result.Message);
         }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -29,7 +29,7 @@ public partial class App : Application
             _mutex = new Mutex(true, "Local\\ScreenNote.Desktop", out _ownsMutex);
             if (!_ownsMutex)
             {
-                if (!DesktopActivation.TryShowExisting()) MessageBox.Show("拾屏已经在运行，请从系统托盘打开。", "拾屏");
+                DesktopActivation.TryShowExisting();
                 Shutdown();
                 return;
             }

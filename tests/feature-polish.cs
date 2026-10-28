@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -98,7 +98,9 @@ internal static class FeaturePolish
         var capture = new CaptureWindow(desktop);
         var root = (Grid)capture.Content;
         var toolbar = (Border)typeof(CaptureWindow).GetField("_actions", Flags)!.GetValue(capture)!;
-        var buttons = ((WrapPanel)toolbar.Child).Children.Cast<Button>().ToArray();
+        var tools = (StackPanel)typeof(CaptureWindow).GetField("_actionPanel", Flags)!.GetValue(capture)!;
+        var footer = (StackPanel)typeof(CaptureWindow).GetField("_completionPanel", Flags)!.GetValue(capture)!;
+        var buttons = tools.Children.Cast<Button>().Concat(footer.Children.Cast<Button>()).ToArray();
         foreach (var width in new[] { 1280d, 900d, 640d })
         {
             var height = width * 860 / 1280;
@@ -108,8 +110,15 @@ internal static class FeaturePolish
             foreach (var button in buttons)
             {
                 var point = button.TranslatePoint(new Point(), root);
-                Check(button.Visibility == Visibility.Visible && button.ActualWidth > 0 && point.X >= 0 && point.Y >= 0 && point.X + button.ActualWidth <= width && point.Y + button.ActualHeight <= height, "Floating action " + (System.Windows.Automation.AutomationProperties.GetName(button) is { Length: > 0 } label ? label : button.Content) + " stays fully visible at " + width);
+                Check(button.Visibility == Visibility.Visible && button.ActualWidth > 0 && point.X >= 0 && point.Y >= 0 && point.X + button.ActualWidth <= width && point.Y + button.ActualHeight <= height, "Floating action " + (System.Windows.Automation.AutomationProperties.GetName(button) is { Length: > 0 } label ? label : button.Content) + $" stays fully visible at {width}: ({point.X}, {point.Y}), size={button.RenderSize}");
             }
+            var cancel = (Button)footer.Children[0]; var edit = (Button)footer.Children[1]; var copy = (Button)footer.Children[2];
+            var cancelPoint = cancel.TranslatePoint(new Point(), root); var copyPoint = copy.TranslatePoint(new Point(), root); var editPoint = edit.TranslatePoint(new Point(), root);
+            Check(cancelPoint.X < editPoint.X && editPoint.X < copyPoint.X && Math.Abs(cancelPoint.Y - editPoint.Y) < 1
+                && buttons.All(button => Math.Abs(button.TranslatePoint(new Point(), root).Y - editPoint.Y) < 1), "All actions share one row, ending with red Cancel, amber Edit and green Copy at " + width);
+            var preview = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32); preview.Render(root);
+            var previewEncoder = new PngBitmapEncoder(); previewEncoder.Frames.Add(BitmapFrame.Create(preview));
+            using (var previewFile = File.Create(Path.Combine(_folder, $"capture-toolbar-{width:F0}.png"))) previewEncoder.Save(previewFile);
         }
         root.Measure(new Size(1280, 860)); root.Arrange(new Rect(0, 0, 1280, 860)); root.UpdateLayout();
         typeof(CaptureWindow).GetField("_rect", Flags)!.SetValue(capture, new Rect(170, 80, 940, 680)); Call(capture, "UpdateSelection"); root.UpdateLayout();
@@ -139,13 +148,44 @@ internal static class FeaturePolish
         Check(copyTask.IsCompletedSuccessfully && Control<ListBox>(main, "HistoryList").Items.Count == historyCount + 1, "Copying an inline highlight retains exactly one new history record");
         Check(surface.ExportDocument() == editorDocument && Bytes(Clipboard.GetImage()!).SequenceEqual(Bytes(rendered)), "Inline highlight copy includes the focus while preserving the existing active editor");
         Call(capture, "SetAiBusy", true);
-        Check(!buttons[2].IsEnabled && buttons[5].IsEnabled && !buttons[6].IsEnabled && buttons[0].IsEnabled && buttons[3].IsEnabled, "A pending delivery disables AI actions while allowing local translation, Copy and OCR");
+        Check(!buttons[0].IsEnabled && buttons[3].IsEnabled && buttons[4].IsEnabled && buttons[8].IsEnabled && buttons[1].IsEnabled, "A pending delivery disables AI actions while allowing local translation, Copy and OCR");
+        SaveToolbarStates(capture, toolbar, buttons);
         capture.Close();
     }
+    private static void SaveToolbarStates(CaptureWindow capture, Border toolbar, Button[] buttons)
+    {
+        capture.Show(); capture.UpdateLayout(); Drain();
+        void SaveBar(string name, double scale = 1)
+        {
+            capture.UpdateLayout();
+            var visual = new DrawingVisual();
+            using (var drawing = visual.RenderOpen())
+                drawing.DrawRectangle(new VisualBrush(toolbar), null, new Rect(0, 0, toolbar.ActualWidth, toolbar.ActualHeight));
+            var image = new RenderTargetBitmap((int)Math.Ceiling(toolbar.ActualWidth * scale), (int)Math.Ceiling(toolbar.ActualHeight * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+            image.Render(visual); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(image));
+            using var file = File.Create(Path.Combine(_folder, name)); encoder.Save(file);
+        }
+        SaveBar("toolbar-disabled.png");
+        Call(capture, "SetAiBusy", false);
+        SaveBar("toolbar-default.png"); SaveBar("toolbar-default-200.png", 2);
+        buttons[8].Focus(); Drain(); SaveBar("toolbar-keyboard-focus.png");
+        GetCursorPos(out var original);
+        try
+        {
+            var point = buttons[7].PointToScreen(new Point(buttons[7].ActualWidth / 2, buttons[7].ActualHeight / 2));
+            SetCursorPos((int)point.X, (int)point.Y); Drain();
+            SaveBar("toolbar-edit-hover.png");
+        }
+        finally { SetCursorPos(original.X, original.Y); }
+    }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct CursorPoint { public int X, Y; }
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool GetCursorPos(out CursorPoint point);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     private static void VerifyActions(MainWindow window)
     {
         SavePreview(window, "empty.png");
-        var actions = new[] { "PrimarySendButton", "PrimaryOcrButton", "PrimaryHighlightButton", "PrimaryTranslateButton", "PrimarySummaryButton" };
+        var actions = new[] { "PrimarySendButton", "PrimaryOcrButton", "PrimaryHighlightButton", "PrimaryTranslateButton" };
         foreach (var name in actions) Check(Control<Button>(window, name).Visibility == Visibility.Visible, name + " is visible in the first toolbar on startup");
         Check(!Control<Button>(window, "PrimarySendButton").IsEnabled && Control<Button>(window, "CaptureButton").IsEnabled, "Empty state disables image actions but keeps new capture available");
         var demo = (BitmapSource)typeof(MainWindow).Assembly.GetType("ScreenNote.DemoImage")!.GetMethod("Create")!.Invoke(null, null)!;
@@ -180,13 +220,9 @@ internal static class FeaturePolish
             Check(barBounds.Right <= targetBounds.Left, "Primary actions never overlap the target selector at width " + width);
             Check(Control<WrapPanel>(window, "ToolPanel").ActualHeight <= 58, "Drawing tools stay on one row with the OCR panel at width " + width);
         }
-        var promptMethod = typeof(MainWindow).GetMethod("AiActionPrompt", BindingFlags.Static | BindingFlags.NonPublic)!;
-        try { promptMethod.Invoke(null, new object[] { "translate", "校对后的材料" }); throw new InvalidOperationException("Translation should not create AI prompts"); }
-        catch (TargetInvocationException ex) when (ex.InnerException is ArgumentOutOfRangeException) { Check(true, "Translation no longer creates an AI prompt"); }
-        Check(((string)promptMethod.Invoke(null, new object[] { "summary", "" })!).Contains("附图"), "Image summary references the attachments in their original order");
         Call(window, "LoadImage", demo, "阅读摘录"); Call(window, "LoadImage", demo, "项目想法"); Call(window, "ShowHistory");
         var list = Control<ListBox>(window, "HistoryList"); list.SelectAll(); Drain(); SavePreview(window, "history.png");
-        Check(Control<Button>(window, "PrimarySendButton").IsEnabled && Control<Button>(window, "PrimaryTranslateButton").IsEnabled && Control<Button>(window, "PrimarySummaryButton").IsEnabled, "Multiple selected screenshots enable send, translation and summary at the top");
+        Check(Control<Button>(window, "PrimarySendButton").IsEnabled && Control<Button>(window, "PrimaryTranslateButton").IsEnabled, "Multiple selected screenshots enable send and translation at the top");
         Check(!Control<Button>(window, "PrimaryOcrButton").IsEnabled && !Control<Button>(window, "PrimaryHighlightButton").IsEnabled, "Single-image editing tools disable clearly when multiple images are selected");
         typeof(MainWindow).GetField("_sending", Flags)!.SetValue(window, true); Call(window, "RefreshHistoryActions");
         Check(actions.Where(name => name != "PrimaryTranslateButton").All(name => !Control<Button>(window, name).IsEnabled) && Control<Button>(window, "PrimaryTranslateButton").IsEnabled, "An active AI transfer keeps independent local translation available");

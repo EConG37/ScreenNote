@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -184,26 +184,12 @@ public partial class MainWindow
         var open = new Button { Content = "打开当前文件夹" };
         var defaultFolder = new Button { Content = "恢复默认" }; defaultFolder.Click += (_, _) => storage.Text = App.DefaultDataDirectory;
         storageActions.Children.Add(choose); storageActions.Children.Add(open); storageActions.Children.Add(defaultFolder); panel.Children.Add(storageActions);
-        panel.Children.Add(Hint("截图、标注和 OCR 文字保存在所选文件夹下的 history。修改并保存后自动迁移现有资料，原文件夹保留。"));
+        panel.Children.Add(Hint("截图、标注和 OCR 文字保存在 history，GIF 动图保存在 recordings。修改并保存后一起迁移，原文件夹保留。"));
         var warning = Hint("默认资料位于软件安装文件夹内。卸载软件会同步删除该文件夹，导致资料丢失。重要资料建议另选文件夹。");
         warning.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14)); panel.Children.Add(warning); Divider();
 
-        Heading("连接 AI 网页");
-        panel.Children.Add(Hint("在 Chrome 或 Edge 加载随软件提供的扩展。首次配对后会保留连接，重启软件或浏览器无需再次输入配对码。"));
-        var code = new TextBox { IsReadOnly = true, FontSize = 24, HorizontalContentAlignment = HorizontalAlignment.Center };
-        var pairStatus = Hint(""); panel.Children.Add(pairStatus); panel.Children.Add(code);
-        void RefreshPairing()
-        {
-            var paired = _bridge?.HasPairing == true;
-            code.Visibility = paired ? Visibility.Collapsed : Visibility.Visible;
-            var value = _bridge?.PairCode ?? "连接服务未启动"; if (code.Text != value) code.Text = value;
-            pairStatus.Text = paired ? "已配对 · 浏览器运行后自动连接" : _bridge?.Status ?? "可使用复制粘贴方式";
-        }
-        var reset = new Button { Content = "断开配对并生成新配对码", FontSize = 11, HorizontalAlignment = HorizontalAlignment.Left };
-        var extensionFolder = new Button { Content = "打开扩展文件夹", HorizontalAlignment = HorizontalAlignment.Left };
-        extensionFolder.Click += (_, _) => OpenExtensionFolder(); panel.Children.Add(reset); panel.Children.Add(extensionFolder);
-        var pairTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        pairTimer.Tick += (_, _) => RefreshPairing(); RefreshPairing(); pairTimer.Start();
+        Heading("发送到 AI 网页");
+        panel.Children.Add(Hint("无需安装扩展或配对。点击发送后，截图会先复制到剪贴板，再打开所选 AI 网页并尝试粘贴。若尚未登录或未找到输入框，登录后点击聊天输入框按 Ctrl+V 即可。内容只放入草稿，由你检查并发送。"));
 
         var footer = new StackPanel { Margin = new Thickness(24, 8, 24, 20) };
         var feedback = new TextBlock { Name = "SettingsFeedback", Foreground = new SolidColorBrush(Color.FromRgb(191, 89, 68)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
@@ -215,7 +201,6 @@ public partial class MainWindow
         Grid.SetRow(footer, 1); grid.Children.Add(footer);
         var saving = false;
         dialog.Closing += (_, args) => { if (saving) args.Cancel = true; };
-        reset.Click += (_, _) => { try { _bridge?.ResetPairing(); RefreshPairing(); } catch (Exception ex) { feedback.Text = "连接未重置：" + ex.Message; } };
         open.Click += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { ArgumentList = { Path.Combine(App.DataDirectory, "history") }, UseShellExecute = true }); }
@@ -243,7 +228,7 @@ public partial class MainWindow
                 HotkeyHint.Text = normalized; combination.Text = normalized; storage.Text = App.DataDirectory;
                 feedback.Foreground = new SolidColorBrush(Color.FromRgb(24, 117, 107));
                 feedback.Text = count > 0 ? $"设置已保存，{count} 张历史截图已迁移，原资料仍保留。" : "设置已保存。";
-                SetStatus(feedback.Text); RefreshPairing();
+                SetStatus(feedback.Text);
             }
             catch (Exception ex)
             {
@@ -257,6 +242,6 @@ public partial class MainWindow
         };
         dialog.Content = grid; CheckHotkey();
         try { if (_hotkey != null) _hotkey.Suspended = true; dialog.ShowDialog(); }
-        finally { if (_hotkey != null) { _hotkey.EndRecording(); _hotkey.Recorded -= onRecorded; _hotkey.Suspended = false; } hotkeyTimer.Stop(); pairTimer.Stop(); _settingsWindow = null; }
+        finally { if (_hotkey != null) { _hotkey.EndRecording(); _hotkey.Recorded -= onRecorded; _hotkey.Suspended = false; } hotkeyTimer.Stop(); _settingsWindow = null; }
     }
 }

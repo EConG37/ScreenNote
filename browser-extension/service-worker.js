@@ -195,11 +195,20 @@ async function ensureTargetTab(target = "deepseek") {
 async function deliverToTab(tabId, job) {
   // New tabs and SPA navigation may not have a ready composer yet.
   const expires = Math.min(Date.now() + 15000, job.expiresAt || Infinity);
+  let injected = false;
   while (Date.now() < expires) {
     let ready;
     try {
       ready = await chrome.tabs.sendMessage(tabId, { type: "SCREENNOTE_READY", target: job.target || "deepseek" });
-    } catch { /* The content script is still loading. */ }
+    } catch {
+      // Existing tabs do not receive declarative content scripts after an
+      // extension install/reload. Inject once into this permitted AI tab.
+      if (!injected && chrome.scripting?.executeScript) {
+        injected = true;
+        try { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); }
+        catch { /* Loading or restricted tab: report a useful failure below. */ }
+      }
+    }
     // Once a delivery is attempted, never repeat it after a navigation or lost reply.
     if (ready?.ready) return await chrome.tabs.sendMessage(tabId, { type: "SCREENNOTE_DELIVER", job });
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -261,7 +270,9 @@ async function runPollBridge() {
 }
 
 async function handleMessage(message, sender) {
-  const fromOwnPopup = sender.id === chrome.runtime.id && !sender.tab && sender.url === chrome.runtime.getURL("popup.html");
+  // Opening our own connection page in a tab is useful in Chromium derivatives.
+  // The exact extension-owned URL and sender ID still exclude AI page scripts.
+  const fromOwnPopup = sender.id === chrome.runtime.id && sender.url === chrome.runtime.getURL("popup.html");
   const fromAiPage = sender.id === chrome.runtime.id && sender.tab && isAiPage(sender.url || "");
   if (message.type === "BRIDGE_HEARTBEAT" && fromAiPage) {
     // Only during active delivery: keep the pending response alive while the

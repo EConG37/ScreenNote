@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
@@ -31,14 +31,16 @@ internal static class CaptureActionsValidation
             var fallback = new CaptureWindow(source);
             Assert(fallback.Action == CaptureAction.None && fallback.CapturedImage is null,
                 "New selector started with a completed capture.");
-            Assert(Buttons(fallback).Length == 8 && Buttons(fallback).Skip(2).Take(5).Select(System.Windows.Automation.AutomationProperties.GetName).SequenceEqual(new[] { "发送给 AI", "图片 OCR", "高亮选框", "翻译", "总结" }),
-                "The floating selector must expose all five direct actions alongside Copy/Edit/Cancel.");
-            Assert(((SolidColorBrush)Buttons(fallback)[0].Background).Color == Color.FromRgb(32, 35, 31),
-                "Copy action does not use the neutral fallback style.");
+            Assert(Buttons(fallback).Length == 9 && Buttons(fallback).Skip(2).Take(6).Select(System.Windows.Automation.AutomationProperties.GetName).SequenceEqual(new[] { "发送给 AI", "图片 OCR", "高亮选框", "翻译", "录制 GIF", "滚动截图" }),
+                "The floating selector must expose the direct actions without Summary alongside Copy/Edit/Cancel.");
+            Assert(((SolidColorBrush)Buttons(fallback)[0].Background).Color == Color.FromRgb(35, 120, 75)
+                && ((SolidColorBrush)Buttons(fallback)[1].Foreground).Color == Color.FromRgb(140, 97, 22)
+                && ((SolidColorBrush)Buttons(fallback)[8].Foreground).Color == Color.FromRgb(181, 76, 69),
+                "Copy, Edit and Cancel must use green, yellow and red.");
             var toolbar = (Border)typeof(CaptureWindow).GetField("_actions", PrivateInstance)!.GetValue(fallback)!;
             Assert(((SolidColorBrush)toolbar.Background).Color == Colors.White
                 && ((SolidColorBrush)toolbar.BorderBrush).Color == Color.FromRgb(221, 223, 227)
-                && toolbar.CornerRadius == new CornerRadius(8), "Toolbar does not use the neutral visual style.");
+                && toolbar.CornerRadius == new CornerRadius(10), "Toolbar does not use the neutral visual style.");
             var overlay = (Border)((Grid)fallback.Content).Children[1];
             Assert(((SolidColorBrush)overlay.Background).Color == Color.FromArgb(70, 0, 0, 0),
                 "Capture mask is not translucent pure black.");
@@ -53,11 +55,9 @@ internal static class CaptureActionsValidation
             var selection = new Rect(10, 7, 24, 18);
             var copied = Run(source, selection, window => Click(window, 0));
             CheckCrop(copied, CaptureAction.Copy, source, new Int32Rect(10, 7, 24, 18));
-            Assert(ReferenceEquals(Buttons(copied.Window)[0].Style, primaryStyle),
-                "Copy button did not use the existing PrimaryButton resource.");
             var edited = Run(source, selection, window => Click(window, 1));
             CheckCrop(edited, CaptureAction.Edit, source, new Int32Rect(10, 7, 24, 18));
-            foreach (var item in new[] { (3, CaptureAction.Ocr), (5, CaptureAction.Translate), (6, CaptureAction.Summary) })
+            foreach (var item in new[] { (3, CaptureAction.Ocr), (5, CaptureAction.Translate) })
                 CheckCrop(Run(source, selection, window => Click(window, item.Item1)), item.Item2, source, new Int32Rect(10, 7, 24, 18));
             foreach (var (index, target) in new[] { (0, "deepseek"), (1, "doubao"), (2, "chatgpt") })
             {
@@ -99,7 +99,17 @@ internal static class CaptureActionsValidation
             var doubleClickDefault = Run(source, selection, window =>
                 typeof(CaptureWindow).GetMethod("Complete", PrivateInstance)!.Invoke(window, new object[] { Type.Missing }));
             CheckCrop(doubleClickDefault, CaptureAction.Copy, source, new Int32Rect(10, 7, 24, 18));
-            var cancelled = Run(source, selection, window => Click(window, 7));
+            var gif = Run(source, selection, window => Click(window, 6));
+            Assert(gif.Completed == true && gif.Window.Action == CaptureAction.RecordGif && gif.Window.CapturedImage == null
+                && gif.Window.SelectedScreenBounds == new System.Drawing.Rectangle(10, 7, 24, 18), "GIF must return screen bounds instead of a frozen screenshot.");
+            var gifKey = Run(source, selection, window => SendKey(window, Key.G, ModifierKeys.Control));
+            Assert(gifKey.Window.Action == CaptureAction.RecordGif, "Ctrl+G did not select GIF recording.");
+            var negativeOrigin = Run(source, selection, window => Click(window, 6), new System.Drawing.Rectangle(-1920, -200, 64, 48));
+            Assert(negativeOrigin.Window.SelectedScreenBounds == new System.Drawing.Rectangle(-1910, -193, 24, 18), "GIF bounds lost the virtual desktop's negative origin.");
+            var scroll = Run(source, selection, window => Click(window, 7));
+            Assert(scroll.Completed == true && scroll.Window.Action == CaptureAction.Scroll && scroll.Window.CapturedImage == null
+                && scroll.Window.SelectedScreenBounds == new System.Drawing.Rectangle(10, 7, 24, 18), "Scroll action must return the selected screen region.");
+            var cancelled = Run(source, selection, window => Click(window, 8));
             CheckCancelled(cancelled);
             CheckCancelled(Run(source, selection, window => SendKey(window, Key.Escape)));
             CheckCancelled(Run(source, selection, window =>
@@ -117,7 +127,7 @@ internal static class CaptureActionsValidation
                             "Invalid selection completed the dialog or produced a crop.");
                     }));
             }
-            foreach (var action in new[] { CaptureAction.None, (CaptureAction)999 })
+            foreach (var action in new[] { CaptureAction.None, (CaptureAction)6, (CaptureAction)999 })
                 CheckCancelled(Run(source, selection, window =>
                 {
                     Complete(window, action);
@@ -126,11 +136,11 @@ internal static class CaptureActionsValidation
                 }));
             CheckCancelled(Run(source, selection, window =>
             {
-                Assert(!SendKey(window, Key.E), "E without Control triggered capture editing.");
+                Assert(SendKey(window, Key.E), "E should activate the ellipse tool.");
                 Assert(window.Action == CaptureAction.None && window.CapturedImage is null,
-                    "An unhandled key completed capture.");
+                    "Selecting the ellipse tool completed capture.");
             }));
-            Console.WriteLine("PASS: all eight direct floating actions, inline editable focus, original crop preservation, 100/200-percent DPI rendering, Copy/Edit/AI/OCR/Translate/Summary dispatch, Enter/Ctrl+E and cancellation; synthetic bitmap only.");
+            Console.WriteLine("PASS: nine floating actions, colored single-row actions, GIF/scroll bounds and Ctrl+G, editable focus, original crop, 100/200-percent DPI, dispatch and cancellation; synthetic bitmap only.");
             app.Shutdown();
             return 0;
         }
@@ -141,9 +151,9 @@ internal static class CaptureActionsValidation
         }
     }
 
-    private static Result Run(BitmapSource source, Rect selection, Action<CaptureWindow> action)
+    private static Result Run(BitmapSource source, Rect selection, Action<CaptureWindow> action, System.Drawing.Rectangle? bounds = null)
     {
-        var window = new CaptureWindow(source) { Opacity = 0, ShowActivated = false };
+        var window = new CaptureWindow(source, bounds) { Opacity = 0, ShowActivated = false };
         Exception? failure = null;
         window.Loaded += (_, _) => window.Dispatcher.BeginInvoke(new Action(() =>
         {
@@ -161,9 +171,13 @@ internal static class CaptureActionsValidation
         return new Result(window, completed);
     }
 
-    private static Button[] Buttons(CaptureWindow window) =>
-        ((WrapPanel)((Border)typeof(CaptureWindow).GetField("_actions", PrivateInstance)!.GetValue(window)!).Child)
-            .Children.Cast<Button>().ToArray();
+    private static Button[] Buttons(CaptureWindow window)
+    {
+        var actions = (System.Collections.Generic.Dictionary<CaptureAction, Button>)typeof(CaptureWindow).GetField("_actionButtons", PrivateInstance)!.GetValue(window)!;
+        var tools = (StackPanel)typeof(CaptureWindow).GetField("_actionPanel", PrivateInstance)!.GetValue(window)!;
+        return new[] { actions[CaptureAction.Copy], actions[CaptureAction.Edit] }.Concat(tools.Children.Cast<Button>())
+            .Append((Button)typeof(CaptureWindow).GetField("_cancelButton", PrivateInstance)!.GetValue(window)!).ToArray();
+    }
 
     private static void Click(CaptureWindow window, int index) =>
         Buttons(window)[index].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

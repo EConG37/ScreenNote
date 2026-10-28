@@ -293,7 +293,7 @@ public sealed class AiBridgeService : IDisposable
         if (!request.Headers.TryGetValue("X-ScreenNote-Extension", out var extensionId) || !Regex.IsMatch(extensionId, "^[a-p]{32}$")) return (403, new { message = "仅接受浏览器扩展连接。" });
         // Extension fetch may omit Origin. Website requests cannot set our custom header
         // without a preflight; OPTIONS is rejected and no CORS grant is ever emitted.
-        if (request.Headers.TryGetValue("Origin", out var origin) && origin != $"chrome-extension://{extensionId}") return (403, new { message = "不允许的请求来源。" });
+        if (request.Headers.TryGetValue("Origin", out var origin) && !IsExtensionOrigin(origin, extensionId)) return (403, new { message = "不允许的请求来源。" });
 
         lock (_gate)
         {
@@ -356,6 +356,7 @@ public sealed class AiBridgeService : IDisposable
     }
 
     private static bool SecureEquals(string value, string expected) => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(value), Encoding.UTF8.GetBytes(expected));
+    private static bool IsExtensionOrigin(string origin, string extensionId) => origin == $"chrome-extension://{extensionId}" || origin == $"extension://{extensionId}";
     private static bool IsPairingStorageError(Exception error) => error is IOException or UnauthorizedAccessException or CryptographicException or JsonException or FormatException or PlatformNotSupportedException;
     private static string? JsonString(JsonElement data, string name) => data.ValueKind == JsonValueKind.Object && data.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
@@ -363,7 +364,7 @@ public sealed class AiBridgeService : IDisposable
     {
         var headers = request.Headers;
         if (!headers.TryGetValue("Host", out var host) || host != $"127.0.0.1:{_listeningPort}"
-            || !headers.TryGetValue("Origin", out var origin) || !Regex.IsMatch(origin, "^chrome-extension://[a-p]{32}$")
+            || !headers.TryGetValue("Origin", out var origin) || !Regex.IsMatch(origin, "^(?:chrome-extension|extension)://[a-p]{32}$")
             || !headers.TryGetValue("Upgrade", out var upgrade) || !upgrade.Equals("websocket", StringComparison.OrdinalIgnoreCase)
             || !headers.TryGetValue("Connection", out var connectionHeader) || !connectionHeader.Split(',').Any(value => value.Trim().Equals("Upgrade", StringComparison.OrdinalIgnoreCase))
             || !headers.TryGetValue("Sec-WebSocket-Version", out var version) || version != "13"
@@ -372,7 +373,7 @@ public sealed class AiBridgeService : IDisposable
             await WriteResponseAsync(stream, 403, new { message = "不允许的实时连接。" }, handshakeToken).ConfigureAwait(false);
             return;
         }
-        var extensionId = origin["chrome-extension://".Length..];
+        var extensionId = origin[(origin.IndexOf("://", StringComparison.Ordinal) + 3)..];
         lock (_gate) { if (_disposed || _token is null || _extensionId != extensionId) return; }
         var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
         await stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), handshakeToken).ConfigureAwait(false);

@@ -28,6 +28,9 @@ internal static class StorageLocationValidation
             Assert(Path.IsPathFullyQualified(StorageLocationService.NormalizeDataDirectory("tests")), "Normalization did not return an absolute path.");
             Assert(!Directory.EnumerateFiles(sourceRoot).Any(), "Writable probe left a file behind.");
             File.WriteAllText(Path.Combine(sourceRoot, "settings.json"), "source settings stay here");
+            Directory.CreateDirectory(Path.Combine(sourceRoot, "recordings"));
+            File.WriteAllBytes(Path.Combine(sourceRoot, "recordings", "动画.gif"), new byte[] { 71, 73, 70, 56, 57, 97 });
+            File.WriteAllText(Path.Combine(sourceRoot, "recordings", "unfinished.gif.partial"), "unfinished");
             File.WriteAllText(Path.Combine(targetRoot, "settings.json"), "target settings stay here");
             var source = new HistoryService(Path.Combine(sourceRoot, "history"));
             var destination = new HistoryService(Path.Combine(targetRoot, "history"));
@@ -56,6 +59,8 @@ internal static class StorageLocationValidation
 
             Assert(Task.Run(() => StorageLocationService.CopyHistory(sourceRoot, targetRoot)).GetAwaiter().GetResult() == 1,
                 "Background migration did not count the committed source capture.");
+            Assert(File.ReadAllBytes(Path.Combine(targetRoot, "recordings", "动画.gif")).SequenceEqual(File.ReadAllBytes(Path.Combine(sourceRoot, "recordings", "动画.gif")))
+                && !File.Exists(Path.Combine(targetRoot, "recordings", "unfinished.gif.partial")), "GIF migration lost a recording or copied an incomplete file.");
             Assert(File.ReadAllBytes(Path.Combine(sourceDirectory, "current.json")).SequenceEqual(sourcePointer)
                 && File.ReadAllBytes(Path.Combine(sourceDirectory, "source.png")).SequenceEqual(originalBytes), "Migration altered source history.");
             Assert(Directory.GetFiles(targetDirectory).Length == 4 && !File.Exists(Path.Combine(targetDirectory, "unused-orphan.png")),

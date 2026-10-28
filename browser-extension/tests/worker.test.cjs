@@ -103,6 +103,15 @@ test("pairing is popup-only and transport is scoped loopback without cookies", a
   assert.equal(requests[0].options.headers["X-ScreenNote-Extension"], extensionId);
 });
 
+test("the extension-owned connection page also pairs when opened as a Quark tab", async () => {
+  const h = workerHarness();
+  h.context.chrome.runtime.getURL = name => `extension://${h.extensionId}/${name}`;
+  const result = await h.context.handleMessage({ type: "BRIDGE_PAIR", code: "123456" }, { id: h.extensionId, tab: { id: 18 }, url: `extension://${h.extensionId}/popup.html` });
+  assert.equal(result.success, true); assert.equal(h.localState.bridgeToken, "token");
+  const blocked = await h.context.handleMessage({ type: "BRIDGE_PAIR", code: "123456" }, { id: h.extensionId, tab: { id: 18 }, url: "https://chat.deepseek.com/popup.html" });
+  assert.equal(blocked.success, false);
+});
+
 test("batch count and explicit target survive delivery and acknowledgement", async () => {
   const h = workerHarness();
   h.localState.bridgeToken = "token";
@@ -139,6 +148,18 @@ test("target without a tab opens only that official AI website", async () => {
   assert.equal(h.tabEvents.find(event => event[0] === "create")[1].url, "https://www.doubao.com/chat/");
   await assert.rejects(h.context.ensureTargetTab("https://attacker.example/"));
   assert.equal(h.tabEvents.filter(event => event[0] === "create").length, 1);
+});
+
+test("an existing AI tab without a receiver is reconnected once before delivery", async () => {
+  const h = workerHarness();
+  let injected = 0, delivered = 0;
+  h.context.chrome.scripting = { async executeScript(options) { injected++; assert.equal(options.target.tabId, 42); assert.deepEqual(Array.from(options.files), ["content.js"]); } };
+  h.context.chrome.tabs.sendMessage = async (_, message) => {
+    if (message.type === "SCREENNOTE_READY") { if (injected === 0) throw new Error("Receiving end does not exist"); return { ready: true }; }
+    delivered++; return { success: true, verifiedCount: 1 };
+  };
+  const result = await h.context.deliverToTab(42, { id: "existingtab", target: "deepseek", expiresAt: Date.now() + 3000 });
+  assert.equal(result.success, true); assert.equal(injected, 1); assert.equal(delivered, 1);
 });
 
 test("failed delivery reply after a page refresh does not attempt the batch twice", async () => {

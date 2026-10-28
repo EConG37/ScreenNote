@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     private bool _historyDirty, _switchingDocument, _syncingTarget, _changingStorage;
     private string _startupHotkeyMessage = "";
     private int _documentGeneration;
-    private AiBridgeService? _bridge;
+    private readonly BrowserPasteService _browserPaste = new();
     private HotkeyService? _hotkey;
     private Forms.NotifyIcon? _tray;
     private System.Drawing.Icon? _trayIcon;
@@ -40,8 +40,8 @@ public partial class MainWindow : Window
     private int _documentRevision;
     private string _originalText = "";
     private string _lastRecognizedText = "";
-    private string? _lastBridgeStatus;
     private readonly string[] _args;
+    private GifRecordingWindow? _gifRecording;
 
     public MainWindow(string[] args)
     {
@@ -78,7 +78,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => InitializeDesktop();
         Loaded += OnLoaded;
         Closing += OnClosing;
-        Closed += (_, _) => { _recognition?.Cancel(); _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _hotkey?.Dispose(); _bridge?.Dispose(); };
+        Closed += (_, _) => { _recognition?.Cancel(); _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _hotkey?.Dispose(); };
         _ready = true; ApplyStyles(); SelectTool(AnnotationTool.Select); RefreshHistorySummary(); RefreshHistoryActions();
     }
 
@@ -89,6 +89,8 @@ public partial class MainWindow : Window
         {
             if (_capturing)
             {
+                if (ActivateCompositionWindow()) return;
+                if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; }
                 Application.Current.Windows.OfType<CaptureWindow>().FirstOrDefault(window => window.IsVisible)?.Activate();
                 return;
             }
@@ -124,13 +126,7 @@ public partial class MainWindow : Window
         menu.Items.Add("退出拾屏", null, (_, _) => Dispatcher.Invoke(Quit));
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => Dispatcher.Invoke(() => { ShowHistory(); ShowWorkspace(); });
-        try
-        {
-            _bridge = new AiBridgeService(pairingFile: Path.Combine(SettingsService.ConfigurationDirectory, "browser-pairing.json"));
-            _bridge.StatusChanged += (_, _) => Dispatcher.BeginInvoke(UpdateBridgeStatus);
-            _bridge.Start(); UpdateBridgeStatus();
-        }
-        catch (Exception ex) { SetStatus("网页连接：" + ex.Message); }
+        SetStatus("截图后可直接复制粘贴到 AI 网页，无需扩展。");
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -177,22 +173,14 @@ public partial class MainWindow : Window
         if (!SaveCurrentHistory()) { e.Cancel = true; return; }
         if (_quitting || App.IsTestMode) return;
         e.Cancel = true; Hide();
-        _tray?.ShowBalloonTip(2000, "拾屏仍在运行", "可以使用截图快捷键，或双击托盘图标打开工作台。", Forms.ToolTipIcon.Info);
     }
-    private void ShowWorkspace() { Show(); WindowState = WindowState.Normal; Activate(); }
-    private void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
+    private void ShowWorkspace() { if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
+    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording != null) await _gifRecording.DiscardAndCloseAsync(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
     private void SetStatus(string message) { StatusText.Text = message; }
-    private void UpdateBridgeStatus()
-    {
-        if (_bridge == null || _capturing || _recognizing || _historyDirty || _changingStorage) return;
-        var status = _bridge.Status;
-        if (_sending && !status.StartsWith("正在", StringComparison.Ordinal)) return;
-        if (status != _lastBridgeStatus) { _lastBridgeStatus = status; SetStatus(status); }
-    }
-
     private async void Capture_Click(object sender, RoutedEventArgs e) => await CaptureAsync();
     private async Task CaptureAsync()
     {
+        if (_collageWindow?.IsVisible == true) { await _collageWindow.AddCaptureAsync(); return; }
         if (_capturing || _changingStorage) return;
         if (!SaveCurrentHistory()) return;
         CancelRecognition();
@@ -205,7 +193,18 @@ public partial class MainWindow : Window
             var selector = new CaptureWindow { SelectedAiTarget = CurrentTarget };
             selector.SetAiBusy(_sending);
             var completed = selector.ShowDialog();
-            if (completed == true && selector.CapturedImage != null)
+            if (completed == true && selector.Action == CaptureAction.Scroll)
+            {
+                await CaptureScrollAsync(selector.SelectedScreenBounds, wasVisible);
+            }
+            else if (completed == true && selector.Action == CaptureAction.RecordGif)
+            {
+                _gifRecording = new GifRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
+                try { _gifRecording.ShowDialog(); }
+                finally { _gifRecording = null; }
+                if (wasVisible) ShowWorkspace();
+            }
+            else if (completed == true && selector.CapturedImage != null)
             {
                 _capturing = false; ownsCaptureGate = false; RefreshHistoryActions();
                 await HandleCaptureActionAsync(selector, wasVisible);
@@ -317,13 +316,14 @@ public partial class MainWindow : Window
     private void Undo_Click(object sender, RoutedEventArgs e) => Surface.Undo();
     private void Redo_Click(object sender, RoutedEventArgs e) => Surface.Redo();
     private void Delete_Click(object sender, RoutedEventArgs e) => Surface.DeleteSelected();
-    private void Zoom_Changed(object sender, SelectionChangedEventArgs e) { if (_ready) UpdateZoom(); }
+    private void Zoom_Changed(object sender, SelectionChangedEventArgs e) { if (_ready) { _zoomOverride = null; UpdateZoom(); } }
     private void UpdateZoom()
     {
         if (Surface.Source == null) return;
         var width = (double)Surface.Source.PixelWidth; var height = (double)Surface.Source.PixelHeight;
-        var availableWidth = Math.Max(100, ImageScroll.ActualWidth - 65); var availableHeight = Math.Max(100, ImageScroll.ActualHeight - 65);
-        var factor = ZoomChoice.SelectedIndex switch { 1 => 0.5, 2 => 1, 3 => 1.5, 4 => 2, _ => Math.Min(availableWidth / width, availableHeight / height) };
+        var availableWidth = Math.Max(100, ImageScroll.ActualWidth - 40); var availableHeight = Math.Max(100, ImageScroll.ActualHeight - 40);
+        var factor = _zoomOverride ?? (ZoomChoice.SelectedIndex switch { 1 => 0.5, 2 => 1, 3 => 1.5, 4 => 2, 5 => 4, _ => Math.Min(availableWidth / width, availableHeight / height) });
+        ZoomValue.Text = $"{factor:P0}";
         ImageView.Width = width * factor; ImageView.Height = height * factor;
     }
     private void CopyImage_Click(object sender, RoutedEventArgs e)
@@ -421,7 +421,7 @@ public partial class MainWindow : Window
         _sending = true; RefreshHistoryActions(); SetStatus("正在把文字带到 " + AiBridgeService.TargetName(target) + "…");
         try
         {
-            var result = _bridge == null ? new BridgeDeliveryResult(false, "请先在设置中连接浏览器扩展。") : await _bridge.SendTextAsync(text, target: target);
+            var result = await _browserPaste.SendAsync([], target, text);
             HistoryResult.Text = result.Message;
             if (generation == _documentGeneration) SetStatus(result.Message);
         }
@@ -435,19 +435,6 @@ public partial class MainWindow : Window
         await SendImageBatchAsync(new[] { EncodePng(Surface.Export()) }, CurrentTarget);
     }
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
-    private void OpenExtensionFolder()
-    {
-        var direct = Path.Combine(AppContext.BaseDirectory, "browser-extension");
-        var folder = Directory.Exists(direct) ? direct : FindProjectFolder();
-        if (folder == null) { SetStatus("未找到扩展文件夹，请查看随软件提供的使用说明。 "); return; }
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe") { ArgumentList = { folder }, UseShellExecute = true }); } catch (Exception ex) { SetStatus(ex.Message); }
-    }
-    private static string? FindProjectFolder()
-    {
-        var parent = new DirectoryInfo(AppContext.BaseDirectory);
-        for (var level = 0; parent != null && level < 7; level++, parent = parent.Parent) { var path = Path.Combine(parent.FullName, "browser-extension"); if (Directory.Exists(path)) return path; }
-        return null;
-    }
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         if (Keyboard.FocusedElement is TextBox) return;

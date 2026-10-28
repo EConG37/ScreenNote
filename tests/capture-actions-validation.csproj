@@ -15,7 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="capture-actions-validation.cs" />
-    <Compile Include="../src/ScreenNote/CaptureWindow.cs" Link="CaptureWindow.cs" />
+    <Compile Include="../src/ScreenNote/CaptureWindow.cs" Link="CaptureWindow.cs" /><Compile Include="../src/ScreenNote/CaptureWindow.EditTools.cs"/><Compile Include="../src/ScreenNote/WindowRegionDetector.cs"/>
     <Compile Include="../src/ScreenNote/AnnotationSurface.cs" Link="AnnotationSurface.cs" />
     <Compile Include="../src/ScreenNote/ToolGlyph.cs" Link="ToolGlyph.cs" />
   </ItemGroup>

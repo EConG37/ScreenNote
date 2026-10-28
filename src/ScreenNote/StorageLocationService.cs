@@ -51,6 +51,20 @@ public static class StorageLocationService
         // Validate the complete source and all destination conflicts before committing any record.
         // Partial copies from an interrupted migration remain resumable but have no current pointer.
         var records = new List<CopyRecord>();
+        var recordings = new List<(string Source, string Destination, byte[] Hash)>();
+        var sourceRecordings = Path.Combine(source, "recordings");
+        var destinationRecordings = Path.Combine(destination, "recordings");
+        RejectReparseChain(sourceRecordings); RejectReparseChain(destinationRecordings);
+        if (Directory.Exists(sourceRecordings))
+        {
+            foreach (var file in Directory.EnumerateFiles(sourceRecordings, "*.gif"))
+            {
+                var hash = HashFile(file);
+                var target = Path.Combine(destinationRecordings, Path.GetFileName(file));
+                ValidateImmutableFile(target, hash);
+                recordings.Add((file, target, hash));
+            }
+        }
         if (Directory.Exists(sourceHistory))
         {
             foreach (var directory in Directory.EnumerateDirectories(sourceHistory))
@@ -79,6 +93,12 @@ public static class StorageLocationService
             var pointer = Path.Combine(directory, "current.json");
             if (!File.Exists(pointer) || !HashFile(pointer).SequenceEqual(record.PointerHash))
                 AtomicWrite(pointer, stream => stream.Write(record.PointerBytes), overwrite: true);
+        }
+        if (recordings.Count > 0)
+        {
+            Directory.CreateDirectory(destinationRecordings);
+            RejectReparseChain(destinationRecordings);
+            foreach (var recording in recordings) CopyImmutable(recording.Source, recording.Destination, recording.Hash);
         }
         return records.Count;
     }
