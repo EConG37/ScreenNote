@@ -116,7 +116,7 @@ GIF 自动保存在当前截图资料文件夹下的 **recordings**，默认是 
 
 需要 .NET 10 SDK。桌面部分不依赖额外 NuGet 包；离线 OCR 的独立运行环境与模型在 `src/ScreenNote/ocr-runtime`，随构建复制。
 
-首次从 GitHub 获取源码时，需要先取得不纳入 Git 历史的运行环境和模型：安装 0.10.2 安装包后，把安装目录下的 `ocr-runtime` 和 `translation-models` 复制到 `src/ScreenNote/`；也可以从 0.7.2 Release 的 `ScreenNote-0.7.2-windows.zip` 中取出同名文件夹。之后再执行构建。组件版本、来源和许可证见 [OCR 组件](docs/ocr-components.md) 和 [离线翻译](docs/translation.md)。
+首次从 GitHub 获取源码时，需要先取得不纳入 Git 历史的运行环境和模型：安装 0.10.2 安装包后，把安装目录下的 `ocr-runtime` 和 `translation-models` 复制到 `src/ScreenNote/`，之后再执行构建。组件版本、来源和许可证见 [OCR 组件](docs/ocr-components.md) 和 [离线翻译](docs/translation.md)。
 
 ```powershell
 .\scripts\build.ps1 -Test
