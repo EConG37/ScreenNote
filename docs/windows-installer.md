@@ -16,6 +16,24 @@
 
 已有程序运行时，先从托盘退出拾屏，再运行安装包升级。升级保留安装位置和截图资料；卸载只移除程序文件，截图、GIF 和用户设置继续保留。手动删除整个安装文件夹仍会删除其中的 `data` 资料。
 
+## 免安装版
+
+同一份程序文件也打包成免安装压缩包：`output/ScreenNote-0.10.2-portable-x64.zip`（306 MB）。压缩包里是一个 `ScreenNote-0.10.2-portable` 文件夹，解压后双击 `ScreenNote.exe` 即可运行，不需要安装，也不写注册表。
+
+- 内容与安装包相同，同样自带 .NET 桌面运行时、中文 OCR 和离线翻译模型，无需另装 .NET 或 Python。
+- 截图历史默认留在解压目录的 `data/history`，整个文件夹可以拷到 U 盘或另一台电脑继续用。
+- 设置仍写入 `%LOCALAPPDATA%\ScreenNote\settings.json`，与安装版共用；卸载时删掉解压出的文件夹，需要清理设置再删该目录。
+- 比安装包大（306 MB 对 252 MB），因为 zip 用 deflate 逐文件压缩，安装包用 LZMA 整体压缩。翻译权重约 136 MB，两种方式都压不动。
+- 与安装包一样没有代码签名，首次运行可能提示「已保护你的电脑」，点「更多信息」→「仍要运行」。
+
+构建：先运行 `scripts/build-installer.ps1` 得到已裁剪的 payload，再运行：
+
+```powershell
+.\scripts\build-portable.ps1
+```
+
+脚本会读取 payload 逐文件打包，回读后与源文件逐项比对 SHA-256，输出 zip 与 `.sha256`；包内的 `使用说明.txt` 来自 `installer/portable-readme.txt`。
+
 ## 构建
 
 使用 .NET 10 SDK 和 Windows PowerShell 5.1（或 PowerShell 7），在项目根目录运行：

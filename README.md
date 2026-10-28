@@ -4,15 +4,20 @@ Windows 桌面截图、滚动长图、台词拼图、选区 GIF 录制与压缩�
 
 ## 下载
 
-在 [GitHub Releases](https://github.com/EConG37/ScreenNote/releases/latest) 下载 `ScreenNote-0.10.2-Setup-x64.exe`（252 MB），双击后按中文向导安装到 `%LOCALAPPDATA%\Programs\ScreenNote`。安装包自带 .NET 桌面运行环境、中文 OCR 和中英离线翻译模型，无需另外安装 .NET 或 Python；支持 Windows 10 2004 及以上的 x64 系统。同一 Release 附带 `.sha256` 校验文件，可用 `Get-FileHash` 核对。完整说明见 [Windows 安装包](docs/windows-installer.md)。
+在 [GitHub Releases](https://github.com/EConG37/ScreenNote/releases/latest) 下载，两个包内容相同，任选其一：
+
+- **免安装版** `ScreenNote-0.10.2-portable-x64.zip`（306 MB）：解压到任意位置，双击 `ScreenNote.exe` 即可运行。截图历史保存在解压目录的 `data/history`，设置保存在 `%LOCALAPPDATA%\ScreenNote\settings.json`（与安装版共用）。不用了直接删文件夹。
+- **安装包** `ScreenNote-0.10.2-Setup-x64.exe`（252 MB）：双击后按中文向导安装到 `%LOCALAPPDATA%\Programs\ScreenNote`，附带开始菜单和桌面快捷方式。
+
+两个包都自带 .NET 桌面运行环境、中文 OCR 和中英离线翻译模型，无需另外安装 .NET 或 Python；支持 Windows 10 2004 及以上的 x64 系统。两个包都没有代码签名，Windows 可能提示「已保护你的电脑」，点「更多信息」→「仍要运行」即可。同一 Release 附带 `.sha256` 校验文件，可用 `Get-FileHash` 核对。完整说明见 [Windows 安装包](docs/windows-installer.md)。
 
 0.10.2 去掉操作提醒弹窗和「总结」入口；发送给 AI 改用 Windows 原生复制粘贴，不再需要浏览器扩展或配对。新增选区 GIF 录制与微信小图压缩、滚动长图、多图拼贴（含逐张台词裁切）、大图查看与缩放，保留智能窗口框选和选区上方标注栏，底部工具栏保持单行。相比 0.7.2 的分发包，安装包裁掉了不参与运行的本地化资源、Python 测试与符号计算包，体积从 269 MB 降到 252 MB。
 
-源码和安装包分别保存在仓库与 Releases 中，不包含使用者的截图历史、设置或配对信息。
+源码保存在仓库，安装包与免安装版保存在 Releases 中，不包含使用者的截图历史、设置或配对信息。
 
 ## 开始使用
 
-运行 `output/ScreenNote/ScreenNote.exe`。这个版本需要 Windows 10/11 和 .NET 10 Desktop Runtime；本机已具备所需运行时。
+解压免安装版后双击 `ScreenNote.exe`，或安装后从开始菜单启动；从源码运行时为 `output/ScreenNote/ScreenNote.exe`，需要 Windows 10/11 和 .NET 10 Desktop Runtime。
 
 - 默认按 **Alt+A** 截图，默认优先使用拾屏。框选后可以移动或调整选区，选区内保持原色，外围变暗。浮动栏保持单行，右侧依次为红色取消、黄色编辑截屏、绿色复制截屏；复制采用实色背景并显示回车提示，取消与编辑保持轻量。按钮统一高度、圆角、悬停和焦点反馈。较窄屏幕下辅助功能显示为图标，悬停查看名称，三个主要操作保留文字。「发送给 AI」展开 DeepSeek／豆包／ChatGPT，由本次选择决定目标，并记住供后续操作使用。
 - 点击「复制截屏」、按 Enter 或双击选区，直接复制截图并保留历史，编辑窗口不会弹出。点击「编辑截屏」或按 **Ctrl+E**，保留截图并打开编辑界面。点击「取消」或按 Esc 放弃本次截图。
@@ -116,7 +121,7 @@ GIF 自动保存在当前截图资料文件夹下的 **recordings**，默认是 
 
 需要 .NET 10 SDK。桌面部分不依赖额外 NuGet 包；离线 OCR 的独立运行环境与模型在 `src/ScreenNote/ocr-runtime`，随构建复制。
 
-首次从 GitHub 获取源码时，需要先取得不纳入 Git 历史的运行环境和模型：安装 0.10.2 安装包后，把安装目录下的 `ocr-runtime` 和 `translation-models` 复制到 `src/ScreenNote/`，之后再执行构建。组件版本、来源和许可证见 [OCR 组件](docs/ocr-components.md) 和 [离线翻译](docs/translation.md)。
+首次从 GitHub 获取源码时，需要先取得不纳入 Git 历史的运行环境和模型：下载免安装版并解压（或安装 0.10.2 安装包后打开安装目录），把 `ocr-runtime` 和 `translation-models` 复制到 `src/ScreenNote/`，之后再执行构建。组件版本、来源和许可证见 [OCR 组件](docs/ocr-components.md) 和 [离线翻译](docs/translation.md)。
 
 ```powershell
 .\scripts\build.ps1 -Test
