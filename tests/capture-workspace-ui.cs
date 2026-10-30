@@ -63,6 +63,7 @@ internal static class CaptureWorkspaceUi
         Check(Get<Border>(capture, "_actions").Visibility == Visibility.Collapsed && Get<Border>(capture, "_editTools").Visibility == Visibility.Collapsed, "Hover preview stays uncluttered until a window is selected");
         var click = canvas.PointToScreen(hover);
         SetCursorPos((int)click.X, (int)click.Y); Pump(40); mouse_event(2, 0, 0, 0, 0); Pump(40); mouse_event(4, 0, 0, 0, 0); Pump(40);
+        Pump(150);
         Check(!Get<bool>(capture, "_smartPreview") && Get<Border>(capture, "_actions").Visibility == Visibility.Visible && Math.Abs(Get<Rect>(capture, "_rect").Width * 960 / canvas.ActualWidth - 430) < 1, "A native single click commits the recognized window and reveals both toolbars");
         Call(capture, "PreviewWindowAt", new Point(-500, -500));
         Check(Get<Rect>(capture, "_rect").Width == 0, "Moving away from all program windows clears the preview safely");
@@ -72,7 +73,7 @@ internal static class CaptureWorkspaceUi
         rect = Get<Rect>(capture, "_rect");
         Check(upper.Visibility == Visibility.Visible && Canvas.GetTop(upper) + upper.ActualHeight <= rect.Top, "Drawing toolbar appears above the committed crop");
         var footer = Get<StackPanel>(capture, "_completionPanel");
-        Check(Name((Button)footer.Children[0]) == "取消" && Name((Button)footer.Children[1]) == "编辑截屏" && Name((Button)footer.Children[2]) == "复制截屏", "Completion actions use the requested Cancel, Edit, Copy order");
+        Check(Name((Button)footer.Children[0]) == "取消" && Name((Button)footer.Children[1]) == "编辑" && Name((Button)footer.Children[2]) == "下载" && Name((Button)footer.Children[3]) == "复制", "Completion actions use the requested Cancel, Edit, Download, Copy order");
         var tools = Get<IDictionary>(capture, "_editToolButtons");
         foreach (var tool in new[] { AnnotationTool.Pen, AnnotationTool.Arrow, AnnotationTool.Line, AnnotationTool.Number, AnnotationTool.Mosaic })
         {

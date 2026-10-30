@@ -33,6 +33,12 @@ public partial class MainWindow
             catch (Exception ex) { ShowHistory(); ShowWorkspace(); SetStatus("截图已保留，复制未完成：" + ex.Message); }
             return;
         }
+        if (selector.Action == CaptureAction.Download)
+        {
+            SetStatus("截图已下载：" + selector.DownloadedPath + "，历史已保留。");
+            if (wasVisible) { ShowHistory(); ShowWorkspace(); }
+            return;
+        }
         if (selector.Action == CaptureAction.Translate) { ShowCaptureTranslation(image); return; }
         var target = selector.SelectedAiTarget;
         EditorTargetChoice.SelectedIndex = target switch { "chatgpt" => 1, "doubao" => 2, _ => 0 };
