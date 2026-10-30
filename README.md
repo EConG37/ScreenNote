@@ -2,9 +2,15 @@
 
 Windows 桌面截图、滚动长图、台词拼图、选区 GIF 录制与压缩、标注、本地 OCR 编辑和截图历史工具。截图后直接复制，需要时进入编辑；多张历史截图可以一起带到 DeepSeek、ChatGPT 或豆包网页草稿，也可以导出后拖入其他软件，无需配置模型 API。
 
-## 下载
+## 精简版
 
-在 [GitHub Releases](https://github.com/EConG37/ScreenNote/releases/latest) 下载，两个包内容相同，任选其一：
+精简版主要保留了截图编辑和 GIF 录制等功能。OCR 和翻译因为体积太大已经去除；如有需要，可以用微信自带截图来翻译。
+
+安装包约 53 MB（完整版约 252 MB），安装目录、设置和自启项独立，可与完整版同时安装。下载：[拾屏 精简版 1.0.0](https://github.com/EConG37/ScreenNote/releases/tag/v1.0.0-lite)。精简版不含 OCR 和翻译，其余截图、标注、发送给 AI、历史、GIF、拼图、滚动截图和放大查看都保留。
+
+## 完整版下载
+
+在 [GitHub Releases](https://github.com/EConG37/ScreenNote/releases/tag/v0.10.2) 下载完整版（含本地 OCR 和中英离线翻译），两个包内容相同，任选其一：
 
 - **免安装版** `ScreenNote-0.10.2-portable-x64.zip`（306 MB）：解压到任意位置，双击 `ScreenNote.exe` 即可运行。截图历史保存在解压目录的 `data/history`，设置保存在 `%LOCALAPPDATA%\ScreenNote\settings.json`（与安装版共用）。不用了直接删文件夹。
 - **安装包** `ScreenNote-0.10.2-Setup-x64.exe`（252 MB）：双击后按中文向导安装到 `%LOCALAPPDATA%\Programs\ScreenNote`，附带开始菜单和桌面快捷方式。
