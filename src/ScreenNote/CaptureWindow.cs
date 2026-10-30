@@ -16,7 +16,7 @@ using Forms = System.Windows.Forms;
 
 namespace ScreenNote;
 
-public enum CaptureAction { None, Copy, Edit, SendAi, Ocr, Translate, RecordGif = 7, Scroll }
+public enum CaptureAction { None, Copy, Edit, SendAi, Ocr, Translate, Download = 6, RecordGif = 7, Scroll }
 
 public sealed partial class CaptureWindow : Window
 {
@@ -50,6 +50,7 @@ public sealed partial class CaptureWindow : Window
     private ResizeEdges _resizeEdges;
     public BitmapSource? CapturedImage { get; private set; }
     public BitmapSource? OriginalCapturedImage { get; private set; }
+    public string DownloadedPath { get; private set; } = "";
     public string CapturedDocumentJson { get; private set; } = "";
     public CaptureAction Action { get; private set; }
     public Drawing.Rectangle SelectedScreenBounds { get; private set; }
@@ -95,18 +96,21 @@ public sealed partial class CaptureWindow : Window
         }
         _canvas.Children.Add(_label);
         var actionPanel = _actionPanel;
-        var copy = CreateAction("复制截屏", "copy", "Enter 或双击选区：复制截屏", Colors.White);
+        var copy = CreateAction("复制", "copy", "Enter 或双击选区：复制", Colors.White);
         copy.Background = new SolidColorBrush(Color.FromRgb(35, 120, 75)); copy.FontWeight = FontWeights.SemiBold;
         var enterHint = new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), Padding = new Thickness(4, 0, 4, 1), Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
             Child = new TextBlock { Text = "↵", FontSize = 13, FontWeight = FontWeights.Normal } };
         ((StackPanel)copy.Content).Children.Add(enterHint);
-        var edit = CreateAction("编辑截屏", "pen", "Ctrl+E：编辑截屏", Color.FromRgb(140, 97, 22));
+        var edit = CreateAction("编辑", "pen", "Ctrl+E：编辑", Color.FromRgb(140, 97, 22));
         edit.Background = new SolidColorBrush(Color.FromRgb(255, 246, 220));
+        var download = CreateAction("下载", "download", "Ctrl+S：保存为 PNG 文件", Color.FromRgb(36, 84, 168));
+        download.Background = new SolidColorBrush(Color.FromRgb(232, 240, 254));
         var cancel = _cancelButton = CreateAction("取消", "close", "Esc：取消", Color.FromRgb(181, 76, 69));
         copy.Click += (_, e) => { Complete(CaptureAction.Copy); e.Handled = true; };
         edit.Click += (_, e) => { Complete(CaptureAction.Edit); e.Handled = true; };
+        download.Click += (_, e) => { DownloadSelection(); e.Handled = true; };
         cancel.Click += (_, e) => { Cancel(); e.Handled = true; };
-        _actionButtons.Add(CaptureAction.Copy, copy); _actionButtons.Add(CaptureAction.Edit, edit);
+        _actionButtons.Add(CaptureAction.Copy, copy); _actionButtons.Add(CaptureAction.Edit, edit); _actionButtons.Add(CaptureAction.Download, download);
         var send = CreateAction("发送给 AI", "send", "选择 DeepSeek、豆包或 ChatGPT；内容仅放入网页草稿");
         ((StackPanel)send.Content).Children.Add(new TextBlock { Text = "⌄", Margin = new Thickness(7, -2, 0, 0), Foreground = send.Foreground, VerticalAlignment = VerticalAlignment.Center });
         var destinations = new ContextMenu { PlacementTarget = send, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
@@ -129,7 +133,7 @@ public sealed partial class CaptureWindow : Window
         AddAction("翻译", "translate", CaptureAction.Translate, "本地中英互译，在软件内查看并复制译文");
         AddAction("录制 GIF", "record", CaptureAction.RecordGif, "录制这块屏幕区域，结束后复制 GIF 动图；Ctrl+G");
         AddAction("滚动截图", "scroll", CaptureAction.Scroll, "在选区内向下滚动，将页面拼成一张长图");
-        _completionPanel.Children.Add(cancel); _completionPanel.Children.Add(edit); _completionPanel.Children.Add(copy);
+        _completionPanel.Children.Add(cancel); _completionPanel.Children.Add(edit); _completionPanel.Children.Add(download); _completionPanel.Children.Add(copy);
         var actionLayout = new StackPanel { Orientation = Orientation.Horizontal };
         actionLayout.Children.Add(actionPanel); actionLayout.Children.Add(_actionDivider); actionLayout.Children.Add(_completionPanel);
         _actions.Child = actionLayout; _canvas.Children.Add(_actions);
@@ -218,6 +222,7 @@ public sealed partial class CaptureWindow : Window
         if (key == Key.Enter) { Complete(CaptureAction.Copy); return true; }
         if (_selectionOnly) return false;
         if (key == Key.E && (modifiers & ModifierKeys.Control) != 0) { Complete(CaptureAction.Edit); return true; }
+        if (key == Key.S && modifiers == ModifierKeys.Control) { DownloadSelection(); return true; }
         if (key == Key.G && modifiers == ModifierKeys.Control) { Complete(CaptureAction.RecordGif); return true; }
         if (key == Key.Z && (modifiers & ModifierKeys.Control) != 0) { _focusSurface.Undo(); return true; }
         if (key == Key.Y && modifiers == ModifierKeys.Control) { _focusSurface.Redo(); return true; }
@@ -282,7 +287,7 @@ public sealed partial class CaptureWindow : Window
         _selection.Visibility = valid ? Visibility.Visible : Visibility.Collapsed; _label.Visibility = valid ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_selection, _rect.X); Canvas.SetTop(_selection, _rect.Y); _selection.Width = _rect.Width; _selection.Height = _rect.Height;
         var px = ToPixelRect(_rect, _canvas.ActualWidth, _canvas.ActualHeight, _desktop.PixelWidth, _desktop.PixelHeight);
-        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "单击选择窗口 · 拖动自由框选" : _selectionOnly ? "Enter 加入拼图 · Esc 取消" : _focusMode ? "在选区内标注 · Ctrl+Z 撤销 · V 返回框选" : "Enter 复制  ·  Ctrl+E 编辑  ·  上方工具直接标注");
+        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "单击选择窗口 · 拖动自由框选" : _selectionOnly ? "Enter 加入拼图 · Esc 取消" : _focusMode ? "在选区内标注 · Ctrl+Z 撤销 · V 返回框选" : "Enter 复制  ·  Ctrl+E 编辑  ·  Ctrl+S 下载  ·  上方工具直接标注");
         Canvas.SetLeft(_label, _rect.X); Canvas.SetTop(_label, Math.Max(0, _rect.Y - 38));
         var centerX = _rect.Left + _rect.Width / 2; var centerY = _rect.Top + _rect.Height / 2;
         var positions = new[] { _rect.TopLeft, new Point(centerX, _rect.Top), _rect.TopRight, new Point(_rect.Right, centerY), _rect.BottomRight, new Point(centerX, _rect.Bottom), _rect.BottomLeft, new Point(_rect.Left, centerY) };
@@ -369,6 +374,45 @@ public sealed partial class CaptureWindow : Window
         if ((edges & ResizeEdges.Bottom) != 0) bottom = Math.Clamp(bottom + delta.Y, top + 2, canvasHeight);
         return new Rect(new Point(left, top), new Point(right, bottom));
     }
+    private void DownloadSelection()
+    {
+        if (_rect.IsEmpty || _rect.Width < 2 || _rect.Height < 2) return;
+        var pixelRect = ToPixelRect(_rect, _canvas.ActualWidth, _canvas.ActualHeight, _desktop.PixelWidth, _desktop.PixelHeight);
+        if (pixelRect.Width < 2 || pixelRect.Height < 2) return;
+        var crop = new CroppedBitmap(_desktop, pixelRect); crop.Freeze();
+        var annotated = _focusCrop == pixelRect && _focusSurface.HasAnnotations;
+        var image = annotated ? _focusSurface.Export() : crop;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "下载截图",
+            Filter = "PNG 图片|*.png",
+            DefaultExt = ".png",
+            AddExtension = true,
+            FileName = "拾屏-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png"
+        };
+        // The capture overlay is topmost; step it down so the save dialog is visible above it.
+        var topmost = Topmost;
+        Topmost = false;
+        bool? result;
+        try { result = dialog.ShowDialog(this); }
+        finally { Topmost = topmost; }
+        if (result != true) return;
+        try { SavePng(image, dialog.FileName); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "下载未完成：" + ex.Message, "下载截图", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        DownloadedPath = dialog.FileName;
+        Complete(CaptureAction.Download);
+    }
+    private static void SavePng(BitmapSource bitmap, string path)
+    {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path); encoder.Save(stream);
+    }
     private void Complete(CaptureAction action = CaptureAction.Copy)
     {
         if (!Enum.IsDefined(action) || action == CaptureAction.None) return;
@@ -389,6 +433,7 @@ public sealed partial class CaptureWindow : Window
         _selectionOnly = true; _actionPanel.Visibility = Visibility.Collapsed;
         _actionDivider.Visibility = Visibility.Collapsed;
         _actionButtons[CaptureAction.Edit].Visibility = Visibility.Collapsed;
+        _actionButtons[CaptureAction.Download].Visibility = Visibility.Collapsed;
         var copy = _actionButtons[CaptureAction.Copy];
         ((TextBlock)((StackPanel)copy.Content).Children[1]).Text = label;
         copy.ToolTip = "Enter 或双击选区：" + label;

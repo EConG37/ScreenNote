@@ -57,6 +57,8 @@ internal static class CaptureActionsValidation
             CheckCrop(copied, CaptureAction.Copy, source, new Int32Rect(10, 7, 24, 18));
             var edited = Run(source, selection, window => Click(window, 1));
             CheckCrop(edited, CaptureAction.Edit, source, new Int32Rect(10, 7, 24, 18));
+            var downloaded = Run(source, selection, window => Complete(window, CaptureAction.Download));
+            CheckCrop(downloaded, CaptureAction.Download, source, new Int32Rect(10, 7, 24, 18));
             foreach (var item in new[] { (3, CaptureAction.Ocr), (5, CaptureAction.Translate) })
                 CheckCrop(Run(source, selection, window => Click(window, item.Item1)), item.Item2, source, new Int32Rect(10, 7, 24, 18));
             foreach (var (index, target) in new[] { (0, "deepseek"), (1, "doubao"), (2, "chatgpt") })
@@ -127,7 +129,7 @@ internal static class CaptureActionsValidation
                             "Invalid selection completed the dialog or produced a crop.");
                     }));
             }
-            foreach (var action in new[] { CaptureAction.None, (CaptureAction)6, (CaptureAction)999 })
+            foreach (var action in new[] { CaptureAction.None, (CaptureAction)9, (CaptureAction)999 })
                 CheckCancelled(Run(source, selection, window =>
                 {
                     Complete(window, action);
@@ -140,7 +142,7 @@ internal static class CaptureActionsValidation
                 Assert(window.Action == CaptureAction.None && window.CapturedImage is null,
                     "Selecting the ellipse tool completed capture.");
             }));
-            Console.WriteLine("PASS: nine floating actions, colored single-row actions, GIF/scroll bounds and Ctrl+G, editable focus, original crop, 100/200-percent DPI, dispatch and cancellation; synthetic bitmap only.");
+            Console.WriteLine("PASS: floating action toolbar, completion actions, colored single-row actions, GIF/scroll bounds and Ctrl+G, editable focus, original crop, 100/200-percent DPI, dispatch and cancellation; synthetic bitmap only.");
             app.Shutdown();
             return 0;
         }

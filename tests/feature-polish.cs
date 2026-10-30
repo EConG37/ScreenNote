@@ -112,10 +112,10 @@ internal static class FeaturePolish
                 var point = button.TranslatePoint(new Point(), root);
                 Check(button.Visibility == Visibility.Visible && button.ActualWidth > 0 && point.X >= 0 && point.Y >= 0 && point.X + button.ActualWidth <= width && point.Y + button.ActualHeight <= height, "Floating action " + (System.Windows.Automation.AutomationProperties.GetName(button) is { Length: > 0 } label ? label : button.Content) + $" stays fully visible at {width}: ({point.X}, {point.Y}), size={button.RenderSize}");
             }
-            var cancel = (Button)footer.Children[0]; var edit = (Button)footer.Children[1]; var copy = (Button)footer.Children[2];
-            var cancelPoint = cancel.TranslatePoint(new Point(), root); var copyPoint = copy.TranslatePoint(new Point(), root); var editPoint = edit.TranslatePoint(new Point(), root);
-            Check(cancelPoint.X < editPoint.X && editPoint.X < copyPoint.X && Math.Abs(cancelPoint.Y - editPoint.Y) < 1
-                && buttons.All(button => Math.Abs(button.TranslatePoint(new Point(), root).Y - editPoint.Y) < 1), "All actions share one row, ending with red Cancel, amber Edit and green Copy at " + width);
+            var cancel = (Button)footer.Children[0]; var edit = (Button)footer.Children[1]; var download = (Button)footer.Children[2]; var copy = (Button)footer.Children[3];
+            var cancelPoint = cancel.TranslatePoint(new Point(), root); var copyPoint = copy.TranslatePoint(new Point(), root); var editPoint = edit.TranslatePoint(new Point(), root); var downloadPoint = download.TranslatePoint(new Point(), root);
+            Check(cancelPoint.X < editPoint.X && editPoint.X < downloadPoint.X && downloadPoint.X < copyPoint.X && Math.Abs(cancelPoint.Y - editPoint.Y) < 1
+                && buttons.All(button => Math.Abs(button.TranslatePoint(new Point(), root).Y - editPoint.Y) < 1), "All actions share one row, ending with red Cancel, amber Edit, blue Download and green Copy at " + width);
             var preview = new RenderTargetBitmap((int)width, (int)height, 96, 96, PixelFormats.Pbgra32); preview.Render(root);
             var previewEncoder = new PngBitmapEncoder(); previewEncoder.Frames.Add(BitmapFrame.Create(preview));
             using (var previewFile = File.Create(Path.Combine(_folder, $"capture-toolbar-{width:F0}.png"))) previewEncoder.Save(previewFile);
@@ -148,7 +148,7 @@ internal static class FeaturePolish
         Check(copyTask.IsCompletedSuccessfully && Control<ListBox>(main, "HistoryList").Items.Count == historyCount + 1, "Copying an inline highlight retains exactly one new history record");
         Check(surface.ExportDocument() == editorDocument && Bytes(Clipboard.GetImage()!).SequenceEqual(Bytes(rendered)), "Inline highlight copy includes the focus while preserving the existing active editor");
         Call(capture, "SetAiBusy", true);
-        Check(!buttons[0].IsEnabled && buttons[3].IsEnabled && buttons[4].IsEnabled && buttons[8].IsEnabled && buttons[1].IsEnabled, "A pending delivery disables AI actions while allowing local translation, Copy and OCR");
+        Check(!buttons[0].IsEnabled && buttons[3].IsEnabled && buttons[4].IsEnabled && buttons[8].IsEnabled && buttons[9].IsEnabled && buttons[1].IsEnabled, "A pending delivery disables AI actions while allowing local translation, Download, Copy and OCR");
         SaveToolbarStates(capture, toolbar, buttons);
         capture.Close();
     }
@@ -168,7 +168,7 @@ internal static class FeaturePolish
         SaveBar("toolbar-disabled.png");
         Call(capture, "SetAiBusy", false);
         SaveBar("toolbar-default.png"); SaveBar("toolbar-default-200.png", 2);
-        buttons[8].Focus(); Drain(); SaveBar("toolbar-keyboard-focus.png");
+        buttons[9].Focus(); Drain(); SaveBar("toolbar-keyboard-focus.png");
         GetCursorPos(out var original);
         try
         {
