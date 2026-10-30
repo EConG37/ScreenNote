@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets/app.ico</ApplicationIcon>
+    <AssemblyName>ScreenNoteLite</AssemblyName>
+    <RootNamespace>ScreenNote</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>拾屏 精简版</Product>
+    <AssemblyTitle>拾屏 精简版</AssemblyTitle>
+    <Description>截图、标注、发送给 AI、历史、GIF、拼图与滚动截图</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="assets/app.png" />
+    <Resource Include="assets/app.ico" />
+  </ItemGroup>
+</Project>
