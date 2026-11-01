@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private int _documentRevision;
     private readonly string[] _args;
     private GifRecordingWindow? _gifRecording;
+    private VideoRecordingWindow? _videoRecording;
 
     public MainWindow(string[] args)
     {
@@ -87,6 +88,7 @@ public partial class MainWindow : Window
             {
                 if (ActivateCompositionWindow()) return;
                 if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; }
+                if (_videoRecording?.IsVisible == true) { _videoRecording.Activate(); return; }
                 Application.Current.Windows.OfType<CaptureWindow>().FirstOrDefault(window => window.IsVisible)?.Activate();
                 return;
             }
@@ -170,8 +172,8 @@ public partial class MainWindow : Window
         if (_quitting || App.IsTestMode) return;
         e.Cancel = true; Hide();
     }
-    private void ShowWorkspace() { if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
-    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording != null) await _gifRecording.DiscardAndCloseAsync(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
+    private void ShowWorkspace() { if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; } if (_videoRecording?.IsVisible == true) { _videoRecording.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
+    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording != null) await _gifRecording.DiscardAndCloseAsync(); if (_videoRecording != null) await _videoRecording.DiscardAndCloseAsync(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
     private void SetStatus(string message) { StatusText.Text = message; }
     private async void Capture_Click(object sender, RoutedEventArgs e) => await CaptureAsync();
     private async Task CaptureAsync()
@@ -198,6 +200,13 @@ public partial class MainWindow : Window
                 _gifRecording = new GifRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
                 try { _gifRecording.ShowDialog(); }
                 finally { _gifRecording = null; }
+                if (wasVisible) ShowWorkspace();
+            }
+            else if (completed == true && selector.Action == CaptureAction.RecordVideo)
+            {
+                _videoRecording = new VideoRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
+                try { _videoRecording.ShowDialog(); }
+                finally { _videoRecording = null; }
                 if (wasVisible) ShowWorkspace();
             }
             else if (completed == true && selector.CapturedImage != null)
