@@ -9,7 +9,7 @@
 - 标注编辑器：选择、画笔、箭头、直线、矩形、椭圆、文字、荧光笔、高亮选框、序号、马赛克、遮挡，撤销/重做，颜色/线宽/字号
 - 发送给 AI：原生剪贴板 + 自动粘贴到 DeepSeek / ChatGPT / 豆包，也支持历史多图批量发送
 - 截图历史：自动保存、缩略图、重新编辑、批量导出、删除、资料文件夹迁移
-- GIF 录制、多图拼贴、放大查看、导入图片、托盘与全局快捷键、开机自启
+- GIF 录制、视频录制（MP4，可带系统声音/麦克风）、多图拼贴、放大查看、导入图片、托盘与全局快捷键、开机自启
 
 ## 和完整版的区别
 
@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 图片 OCR / 文字工作台 | 有 | 无 |
 | 中英离线翻译 | 有 | 无 |
-| 截图、标注、发送给 AI、历史、GIF、拼图、滚动截图 | 有 | 有 |
+| 截图、标注、发送给 AI、历史、GIF、视频、拼图、滚动截图 | 有 | 有 |
 | 安装目录 | `%LOCALAPPDATA%\Programs\ScreenNote` | `%LOCALAPPDATA%\Programs\ScreenNoteLite` |
 | 设置目录 | `%LOCALAPPDATA%\ScreenNote` | `%LOCALAPPDATA%\ScreenNoteLite` |
 | 自启注册表值 | `ScreenNote` | `ScreenNoteLite` |
@@ -45,9 +45,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1
 
 产物默认写到仓库级 `output\lite\`（本目录独立使用时会写到本目录的 `output\`）：
 
-- `ScreenNoteLite-1.0.0-Setup-x64.exe`
-- `ScreenNoteLite-1.0.0-portable-x64.zip`
-- `ScreenNoteLite-1.0.0-lite-x64.zip`
+- `ScreenNoteLite-1.1.0-Setup-x64.exe`
+- `ScreenNoteLite-1.1.0-portable-x64.zip`
+- `ScreenNoteLite-1.1.0-lite-x64.zip`
 - `ScreenNoteLite\`（框架依赖发布目录）
 
 ## 体积

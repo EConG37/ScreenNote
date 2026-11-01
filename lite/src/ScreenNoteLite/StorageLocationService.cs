@@ -57,7 +57,8 @@ public static class StorageLocationService
         RejectReparseChain(sourceRecordings); RejectReparseChain(destinationRecordings);
         if (Directory.Exists(sourceRecordings))
         {
-            foreach (var file in Directory.EnumerateFiles(sourceRecordings, "*.gif"))
+            foreach (var file in Directory.EnumerateFiles(sourceRecordings).Where(file =>
+                file.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)))
             {
                 var hash = HashFile(file);
                 var target = Path.Combine(destinationRecordings, Path.GetFileName(file));

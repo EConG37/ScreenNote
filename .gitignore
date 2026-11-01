@@ -20,3 +20,6 @@ browser-pairing.json
 .codex/
 __pycache__/
 *.pyc
+
+# ZCode session state
+.zcode/

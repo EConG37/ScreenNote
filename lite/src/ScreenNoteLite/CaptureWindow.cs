@@ -16,7 +16,7 @@ using Forms = System.Windows.Forms;
 
 namespace ScreenNote;
 
-public enum CaptureAction { None, Copy, Edit, SendAi = 3, Download = 4, RecordGif = 7, Scroll = 8 }
+public enum CaptureAction { None, Copy, Edit, SendAi = 3, Download = 4, RecordGif = 7, Scroll = 8, RecordVideo = 9 }
 
 public sealed partial class CaptureWindow : Window
 {
@@ -130,6 +130,7 @@ public sealed partial class CaptureWindow : Window
         _focusButton.Click += (_, e) => { ToggleFocus(); e.Handled = true; };
         actionPanel.Children.Add(_focusButton);
         AddAction("录制 GIF", "record", CaptureAction.RecordGif, "录制这块屏幕区域，结束后复制 GIF 动图；Ctrl+G");
+        AddAction("录制视频", "video", CaptureAction.RecordVideo, "录制这块屏幕区域为 MP4 视频，可带声音；Ctrl+R");
         AddAction("滚动截图", "scroll", CaptureAction.Scroll, "在选区内向下滚动，将页面拼成一张长图");
         _completionPanel.Children.Add(cancel); _completionPanel.Children.Add(edit); _completionPanel.Children.Add(download); _completionPanel.Children.Add(copy);
         var actionLayout = new StackPanel { Orientation = Orientation.Horizontal };
@@ -222,6 +223,7 @@ public sealed partial class CaptureWindow : Window
         if (key == Key.E && (modifiers & ModifierKeys.Control) != 0) { Complete(CaptureAction.Edit); return true; }
         if (key == Key.S && modifiers == ModifierKeys.Control) { DownloadSelection(); return true; }
         if (key == Key.G && modifiers == ModifierKeys.Control) { Complete(CaptureAction.RecordGif); return true; }
+        if (key == Key.R && modifiers == ModifierKeys.Control) { Complete(CaptureAction.RecordVideo); return true; }
         if (key == Key.Z && (modifiers & ModifierKeys.Control) != 0) { _focusSurface.Undo(); return true; }
         if (key == Key.Y && modifiers == ModifierKeys.Control) { _focusSurface.Redo(); return true; }
         if (modifiers == ModifierKeys.None && CaptureToolKey(key, out var tool)) { SetCaptureTool(tool); return true; }
@@ -418,7 +420,7 @@ public sealed partial class CaptureWindow : Window
         var pixelRect = ToPixelRect(_rect, _canvas.ActualWidth, _canvas.ActualHeight, _desktop.PixelWidth, _desktop.PixelHeight);
         if (pixelRect.Width < 2 || pixelRect.Height < 2) return;
         SelectedScreenBounds = new Drawing.Rectangle(_bounds.X + pixelRect.X, _bounds.Y + pixelRect.Y, pixelRect.Width, pixelRect.Height);
-        if (action is CaptureAction.RecordGif or CaptureAction.Scroll) { Action = action; DialogResult = true; return; }
+        if (action is CaptureAction.RecordGif or CaptureAction.Scroll or CaptureAction.RecordVideo) { Action = action; DialogResult = true; return; }
         var crop = new CroppedBitmap(_desktop, pixelRect); crop.Freeze(); OriginalCapturedImage = crop;
         var annotated = _focusCrop == pixelRect && _focusSurface.HasAnnotations;
         CapturedImage = annotated ? _focusSurface.Export() : crop;
