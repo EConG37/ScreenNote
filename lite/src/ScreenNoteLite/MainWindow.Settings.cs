@@ -135,6 +135,20 @@ public partial class MainWindow
         };
         hotkeyActions.Children.Add(check); hotkeyActions.Children.Add(suggest); panel.Children.Add(hotkeyActions);
         panel.Children.Add(Hint("优先模式只处理选定的截图组合，其他按键照常使用。建议使用 1–2 个按键，最多两个辅助键加一个主键。"));
+        if (!ElevationService.IsCurrentProcessElevated())
+        {
+            var elevationHint = Hint("游戏等以管理员身份运行的程序会拦截拾屏的快捷键（Windows 权限隔离），导致游戏内按键无反应；以管理员身份重启拾屏即可在其中使用。");
+            elevationHint.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14));
+            panel.Children.Add(elevationHint);
+            var restartElevated = new Button { Name = "RestartElevatedButton", Content = "以管理员身份重启拾屏", ToolTip = "通过 Windows 授权后重启，游戏内的截图快捷键随即可用" };
+            restartElevated.Click += (_, _) =>
+            {
+                if (ElevationService.RestartElevated(out var elevationError)) { dialog.Close(); Quit(); }
+                else hotkeyFeedback.Text = elevationError;
+            };
+            panel.Children.Add(restartElevated);
+        }
+        else panel.Children.Add(Hint("当前已以管理员身份运行，管理员权限的游戏和软件内快捷键也可用。"));
         var beforeRecording = combination.Text;
         combination.GotKeyboardFocus += (_, _) => { beforeRecording = combination.Text; hotkeyFeedback.Text = "请按下想使用的快捷键…"; if (_hotkey != null && !_hotkey.BeginRecording(out var error)) hotkeyFeedback.Text = error; };
         combination.LostKeyboardFocus += (_, _) => _hotkey?.EndRecording();

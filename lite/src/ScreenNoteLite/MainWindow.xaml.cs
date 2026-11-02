@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _tray;
     private System.Drawing.Icon? _trayIcon;
     private IDisposable? _desktopActivation;
+    private ForegroundElevationWatcher? _foregroundWatcher;
     private bool _ready, _quitting, _capturing, _sending, _syncingStyle;
     private int _documentRevision;
     private readonly string[] _args;
@@ -75,7 +76,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => InitializeDesktop();
         Loaded += OnLoaded;
         Closing += OnClosing;
-        Closed += (_, _) => { _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _hotkey?.Dispose(); };
+        Closed += (_, _) => { _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _foregroundWatcher?.Dispose(); _hotkey?.Dispose(); };
         _ready = true; ApplyStyles(); SelectTool(AnnotationTool.Select); RefreshHistorySummary(); RefreshHistoryActions();
     }
 
@@ -120,11 +121,36 @@ public partial class MainWindow : Window
         menu.Items.Add("截图", null, async (_, _) => await Dispatcher.InvokeAsync(CaptureAsync).Task.Unwrap());
         menu.Items.Add("截图历史", null, (_, _) => Dispatcher.Invoke(() => { ShowHistory(); ShowWorkspace(); }));
         menu.Items.Add("设置", null, (_, _) => Dispatcher.Invoke(() => { ShowWorkspace(); ShowSettings(); }));
+        if (!ElevationService.IsCurrentProcessElevated())
+        {
+            menu.Items.Add("以管理员身份重启（游戏内快捷键可用）", null, (_, _) => Dispatcher.Invoke(RestartElevated));
+            try
+            {
+                _foregroundWatcher = new ForegroundElevationWatcher(name =>
+                    Dispatcher.BeginInvoke(new Action(() => NotifyElevatedForeground(name))));
+                _tray.BalloonTipClicked += (_, _) => RestartElevated();
+                _foregroundWatcher.CheckNow();
+            }
+            catch { /* 前台监听不可用时只保留托盘重启入口 */ }
+        }
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出拾屏 精简版", null, (_, _) => Dispatcher.Invoke(Quit));
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => Dispatcher.Invoke(() => { ShowHistory(); ShowWorkspace(); });
         SetStatus("截图后可直接复制粘贴到 AI 网页，无需扩展。");
+    }
+
+    private void NotifyElevatedForeground(string processName)
+    {
+        _tray?.ShowBalloonTip(9000, "拾屏快捷键在该程序内不可用",
+            "“" + processName + "”正在以管理员身份运行，拾屏的截图快捷键在其中不会生效。点击此消息，以管理员身份重启拾屏。",
+            Forms.ToolTipIcon.Warning);
+    }
+
+    internal void RestartElevated()
+    {
+        if (ElevationService.RestartElevated(out var error)) { Quit(); return; }
+        ShowHistory(); ShowWorkspace(); SetStatus(error);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
