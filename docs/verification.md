@@ -363,3 +363,12 @@ DeepSeek、ChatGPT、豆包的真实登录页面及上传速度仍未实测。�
 - 体积说明：deflate 逐文件压缩把 592.8 MB 压到 306 MB，比 LZMA 的安装包大 54 MB；两份翻译权重（约 136 MB）在两种方式下都接近不可压缩。
 - 上传后核验：匿名 range 请求返回 206，Release 资产 digest 为 `sha256:efdc5551…`，`.sha256` 文件内容与本地一致。
 - 证据：`scripts/build-portable.ps1`（打包与校验逻辑）、`installer/portable-readme.txt`（包内说明）、`output/ScreenNote-0.10.2-portable-x64.zip.sha256`。
+
+## 录制 GIF 与视频（2026-11-05）
+
+- 主窗口顶栏新增「录制」：弹出选择窗口选「录制 GIF」或「录制视频」，再框选区域按 Enter，3 秒倒计时后开始录制；选区浮动栏的「录制 GIF」（Ctrl+G）保留为跳过选择窗口的快捷入口。录制完成后进入编辑窗口，可拖框保留画面局部、用两条滑块去掉开头结尾，再导出 GIF 或 MP4。
+- GIF 由共享的 `RegionCapture` 逐帧写入，默认 15 帧/秒（可选 10/20）、最长边 1440 像素、最长 60 秒；导出按 1440→1080→840→640→480 逐级降档直到不超过 10 MB，只降清晰度、不剪时长。视频走 Media Foundation 的 H.264 编码（`Mp4Writer` + `VideoRecorder`），24/30 帧可选、最长 10 分钟、不含声音，编码器随 Windows 提供，安装包不增加体积。
+- 录制控制条用 `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` 排除在捕获之外；不支持时退回 `WDA_MONITOR` 并在界面提示把控制条拖到选区外。
+- 测试发现并修复三处缺陷：录制对话框 `Refresh()` 在 XAML 初始化阶段访问尚未赋值的 `Subtitle`/`Hint`/`StartButton` 导致空引用；`MainWindow` 用 `is { } existing` 判断「压缩已有 GIF」路径，空字符串也成立，导致每次录制都误走压缩分支中断流程；对话框关闭后提前把 `_capturing` 置回 false，录制期间可能再次触发截图。
+- 全量验证：`scripts/build.ps1 -Test` 自测 11 项通过；`tests/record-flow-ui` 30 项通过（选择窗口默认值、模式切换、GIF/MP4 编辑导出、主窗口完整录制流程）；`tests/gif-recording-ui` 21 项通过（旧录制窗口与主流程回归）；`tests/gif-recording-validation` 29 项通过；`tests/video-recording-validation` 22 项通过（真实桌面区域录制、H.264 可播放、取消不留残文件、音频探测安全）。合计 113 项。
+- 证据：`.build/record-flow-ui/`（01–06 界面截图与 `export-crop.gif`、`export-from-video.gif`、`export-trimmed.mp4`）、`.build/reg-*.log`、`docs/windows-installer.md` 的录制说明、`README.md` 的「录制 GIF 与视频」一节。

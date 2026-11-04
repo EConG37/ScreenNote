@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
@@ -35,13 +35,14 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _tray;
     private System.Drawing.Icon? _trayIcon;
     private IDisposable? _desktopActivation;
+    private ForegroundElevationWatcher? _foregroundWatcher;
     private CancellationTokenSource? _recognition;
     private bool _ready, _quitting, _capturing, _recognizing, _sending, _syncingStyle;
     private int _documentRevision;
     private string _originalText = "";
     private string _lastRecognizedText = "";
     private readonly string[] _args;
-    private GifRecordingWindow? _gifRecording;
+    private Window? _gifRecording;
 
     public MainWindow(string[] args)
     {
@@ -78,7 +79,7 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => InitializeDesktop();
         Loaded += OnLoaded;
         Closing += OnClosing;
-        Closed += (_, _) => { _recognition?.Cancel(); _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _hotkey?.Dispose(); };
+        Closed += (_, _) => { _recognition?.Cancel(); _tray?.Dispose(); _trayIcon?.Dispose(); _desktopActivation?.Dispose(); _foregroundWatcher?.Dispose(); _hotkey?.Dispose(); };
         _ready = true; ApplyStyles(); SelectTool(AnnotationTool.Select); RefreshHistorySummary(); RefreshHistoryActions();
     }
 
@@ -122,11 +123,36 @@ public partial class MainWindow : Window
         menu.Items.Add("截图", null, async (_, _) => await Dispatcher.InvokeAsync(CaptureAsync).Task.Unwrap());
         menu.Items.Add("截图历史", null, (_, _) => Dispatcher.Invoke(() => { ShowHistory(); ShowWorkspace(); }));
         menu.Items.Add("设置", null, (_, _) => Dispatcher.Invoke(() => { ShowWorkspace(); ShowSettings(); }));
+        if (!ElevationService.IsCurrentProcessElevated())
+        {
+            menu.Items.Add("以管理员身份重启（游戏内快捷键可用）", null, (_, _) => Dispatcher.Invoke(RestartElevated));
+            try
+            {
+                _foregroundWatcher = new ForegroundElevationWatcher(name =>
+                    Dispatcher.BeginInvoke(new Action(() => NotifyElevatedForeground(name))));
+                _tray.BalloonTipClicked += (_, _) => RestartElevated();
+                _foregroundWatcher.CheckNow();
+            }
+            catch { /* 前台监听不可用时只保留托盘重启入口 */ }
+        }
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出拾屏", null, (_, _) => Dispatcher.Invoke(Quit));
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => Dispatcher.Invoke(() => { ShowHistory(); ShowWorkspace(); });
         SetStatus("截图后可直接复制粘贴到 AI 网页，无需扩展。");
+    }
+
+    private void NotifyElevatedForeground(string processName)
+    {
+        _tray?.ShowBalloonTip(9000, "拾屏快捷键在该程序内不可用",
+            "“" + processName + "”正在以管理员身份运行，拾屏的截图快捷键在其中不会生效。点击此消息，以管理员身份重启拾屏。",
+            Forms.ToolTipIcon.Warning);
+    }
+
+    internal void RestartElevated()
+    {
+        if (ElevationService.RestartElevated(out var error)) { Quit(); return; }
+        ShowHistory(); ShowWorkspace(); SetStatus(error);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -175,9 +201,65 @@ public partial class MainWindow : Window
         e.Cancel = true; Hide();
     }
     private void ShowWorkspace() { if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
-    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording != null) await _gifRecording.DiscardAndCloseAsync(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
+    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording is GifRecordingWindow legacyRecording) await legacyRecording.DiscardAndCloseAsync(); else _gifRecording?.Close(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
     private void SetStatus(string message) { StatusText.Text = message; }
     private async void Capture_Click(object sender, RoutedEventArgs e) => await CaptureAsync();
+    private async void Record_Click(object sender, RoutedEventArgs e) => await RecordAsync();
+    private async Task RecordAsync()
+    {
+        if (_capturing || _changingStorage) return;
+        if (!SaveCurrentHistory()) return;
+        CancelRecognition();
+        _capturing = true; RefreshHistoryActions();
+        var wasVisible = IsVisible;
+        Hide();
+        try
+        {
+            await Task.Delay(160);
+            var picker = new RecordWindow();
+            if (picker.ShowDialog() != true) { if (wasVisible) ShowWorkspace(); return; }
+            RefreshHistoryActions();
+            if (picker.CompressExistingPath is { Length: > 0 } existing)
+            {
+                if (wasVisible) ShowWorkspace();
+                await CompressExistingGifAsync(existing);
+                return;
+            }
+            var selector = new CaptureWindow { SelectedAiTarget = CurrentTarget };
+            selector.SetAiBusy(_sending);
+            selector.UseSelectionOnly(picker.Options.IsVideo ? "开始录制视频" : "开始录制 GIF");
+            if (selector.ShowDialog() != true) { if (wasVisible) ShowWorkspace(); return; }
+            await RecordRegionAsync(picker.Options, selector.SelectedScreenBounds, wasVisible);
+        }
+        catch (Exception ex) { ShowWorkspace(); SetStatus("录制未开始：" + ex.Message); }
+        finally { _capturing = false; RefreshHistoryActions(); }
+    }
+    private async Task RecordRegionAsync(RecordOptions options, System.Drawing.Rectangle bounds, bool wasVisible)
+    {
+        var recorder = new RecordingWindow(options, bounds, App.DataDirectory);
+        RecordingOutcome? outcome = null;
+        _gifRecording = recorder;
+        try { if (recorder.ShowDialog() == true) outcome = recorder.Outcome; }
+        finally { _gifRecording = null; }
+        if (outcome == null) { if (wasVisible) ShowWorkspace(); return; }
+        var editor = new RecordEditorWindow(outcome.Path);
+        var saved = editor.ShowDialog() == true && editor.ResultPath != null;
+        if (wasVisible) ShowWorkspace();
+        if (saved) SetStatus("已导出：" + Path.GetFileName(editor.ResultPath) + "（" + options.Format + "）");
+    }
+    private async Task CompressExistingGifAsync(string path)
+    {
+        try
+        {
+            SetStatus("正在压缩 GIF…");
+            var progress = new Progress<string>(message => SetStatus(message));
+            var result = await GifCompressor.CompressAsync(path, App.DataDirectory, CancellationToken.None, progress);
+            SetStatus("已压缩：" + Path.GetFileName(result.Path) + "（" + Math.Max(1, result.Bytes / 1024) + " KB）");
+            try { Clipboard.SetFileDropList(new System.Collections.Specialized.StringCollection { result.Path }); }
+            catch (Exception) { }
+        }
+        catch (Exception ex) { SetStatus("压缩失败：" + ex.Message); }
+    }
     private async Task CaptureAsync()
     {
         if (_collageWindow?.IsVisible == true) { await _collageWindow.AddCaptureAsync(); return; }
@@ -199,10 +281,7 @@ public partial class MainWindow : Window
             }
             else if (completed == true && selector.Action == CaptureAction.RecordGif)
             {
-                _gifRecording = new GifRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
-                try { _gifRecording.ShowDialog(); }
-                finally { _gifRecording = null; }
-                if (wasVisible) ShowWorkspace();
+                await RecordRegionAsync(RecordOptions.Gif(), selector.SelectedScreenBounds, wasVisible);
             }
             else if (completed == true && selector.CapturedImage != null)
             {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing.Imaging;
@@ -35,6 +35,7 @@ public sealed partial class CaptureWindow : Window
     private readonly Border _actionDivider = new() { Width = 1, Height = 20, Background = new SolidColorBrush(Color.FromRgb(228, 231, 225)), Margin = new Thickness(7, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
     private Button _cancelButton = null!;
     private bool _selectionOnly, _toolLabelsVisible = true;
+    private string _selectionLabel = "加入拼图";
     private readonly Dictionary<CaptureAction, Button> _actionButtons = new();
     private Button _focusButton = null!;
     private bool _focusMode;
@@ -287,7 +288,7 @@ public sealed partial class CaptureWindow : Window
         _selection.Visibility = valid ? Visibility.Visible : Visibility.Collapsed; _label.Visibility = valid ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_selection, _rect.X); Canvas.SetTop(_selection, _rect.Y); _selection.Width = _rect.Width; _selection.Height = _rect.Height;
         var px = ToPixelRect(_rect, _canvas.ActualWidth, _canvas.ActualHeight, _desktop.PixelWidth, _desktop.PixelHeight);
-        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "单击选择窗口 · 拖动自由框选" : _selectionOnly ? "Enter 加入拼图 · Esc 取消" : _focusMode ? "在选区内标注 · Ctrl+Z 撤销 · V 返回框选" : "Enter 复制  ·  Ctrl+E 编辑  ·  Ctrl+S 下载  ·  上方工具直接标注");
+        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "单击选择窗口 · 拖动自由框选" : _selectionOnly ? "Enter " + _selectionLabel + " · Esc 取消" : _focusMode ? "在选区内标注 · Ctrl+Z 撤销 · V 返回框选" : "Enter 复制  ·  Ctrl+E 编辑  ·  Ctrl+S 下载  ·  上方工具直接标注");
         Canvas.SetLeft(_label, _rect.X); Canvas.SetTop(_label, Math.Max(0, _rect.Y - 38));
         var centerX = _rect.Left + _rect.Width / 2; var centerY = _rect.Top + _rect.Height / 2;
         var positions = new[] { _rect.TopLeft, new Point(centerX, _rect.Top), _rect.TopRight, new Point(_rect.Right, centerY), _rect.BottomRight, new Point(centerX, _rect.Bottom), _rect.BottomLeft, new Point(_rect.Left, centerY) };
@@ -430,7 +431,7 @@ public sealed partial class CaptureWindow : Window
     private void Cancel() { Action = CaptureAction.None; CapturedImage = null; OriginalCapturedImage = null; CapturedDocumentJson = ""; DialogResult = false; }
     internal void UseSelectionOnly(string label)
     {
-        _selectionOnly = true; _actionPanel.Visibility = Visibility.Collapsed;
+        _selectionOnly = true; _selectionLabel = label; _actionPanel.Visibility = Visibility.Collapsed;
         _actionDivider.Visibility = Visibility.Collapsed;
         _actionButtons[CaptureAction.Edit].Visibility = Visibility.Collapsed;
         _actionButtons[CaptureAction.Download].Visibility = Visibility.Collapsed;

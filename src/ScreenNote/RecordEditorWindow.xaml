@@ -1,0 +1,145 @@
+<Window x:Class="ScreenNote.RecordEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="拾屏 · 编辑录制" Width="1040" Height="700" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Canvas}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+
+  <Window.Resources>
+    <Style x:Key="SectionLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style x:Key="BodyText" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{StaticResource Muted}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="LineHeight" Value="18" />
+    </Style>
+    <Style x:Key="ModeChoice" TargetType="RadioButton">
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="Padding" Value="14,7" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="24,18,24,20" Background="{StaticResource Canvas}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <StackPanel>
+        <TextBlock Text="编辑录制" FontSize="17" FontWeight="SemiBold" />
+        <TextBlock x:Name="Subtitle" Style="{StaticResource BodyText}" Margin="0,4,0,0" />
+      </StackPanel>
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,16,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="300" />
+      </Grid.ColumnDefinitions>
+
+      <Border Background="#1E211D" CornerRadius="12" ClipToBounds="True">
+        <Grid x:Name="Stage" SizeChanged="Stage_SizeChanged">
+          <Image x:Name="PreviewImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" />
+          <Canvas x:Name="Overlay" Background="Transparent"
+                  MouseLeftButtonDown="Overlay_MouseLeftButtonDown"
+                  MouseMove="Overlay_MouseMove"
+                  MouseLeftButtonUp="Overlay_MouseLeftButtonUp"
+                  Cursor="Cross" />
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Column="1" Margin="20,0,10,0">
+        <TextBlock Text="裁剪画面" Style="{StaticResource SectionLabel}" />
+        <TextBlock x:Name="CropText" Style="{StaticResource BodyText}" />
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+          <Button Content="重新框选" Click="ResetCrop_Click" Margin="0,0,8,0" Padding="12,5" />
+          <Button Content="保留全画面" Click="ClearCrop_Click" Padding="12,5" />
+        </StackPanel>
+
+        <Border Height="1" Background="{StaticResource Line}" Margin="0,18,0,16" />
+
+        <TextBlock Text="保留时长" Style="{StaticResource SectionLabel}" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="开始" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+          <TextBlock x:Name="StartText" Grid.Column="1" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+        </Grid>
+        <Slider x:Name="StartSlider" Minimum="0" Maximum="60" Margin="0,2,0,0"
+                IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged" />
+        <Grid Margin="0,8,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="结束" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+          <TextBlock x:Name="EndText" Grid.Column="1" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+        </Grid>
+        <Slider x:Name="EndSlider" Minimum="0" Maximum="60" Margin="0,2,0,0"
+                IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged" />
+        <TextBlock x:Name="KeepText" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
+        <StackPanel x:Name="FilmStrip" Orientation="Horizontal" Margin="0,10,0,0" ClipToBounds="True" />
+
+        <Border Height="1" Background="{StaticResource Line}" Margin="0,18,0,16" />
+
+        <TextBlock Text="输出" Style="{StaticResource SectionLabel}" />
+        <StackPanel Orientation="Horizontal">
+          <RadioButton x:Name="GifChoice" Content="GIF" GroupName="Format" Style="{StaticResource ModeChoice}"
+                       Checked="Format_Checked" />
+          <RadioButton x:Name="VideoChoice" Content="视频 MP4" GroupName="Format" Style="{StaticResource ModeChoice}"
+                       Checked="Format_Checked" />
+        </StackPanel>
+        <StackPanel x:Name="GifPanel" Margin="0,12,0,0">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="帧率" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
+            <ComboBox x:Name="GifFps" Width="96" SelectionChanged="Settings_Changed">
+              <ComboBoxItem Content="10 帧/秒" Tag="10" />
+              <ComboBoxItem Content="15 帧/秒" Tag="15" IsSelected="True" />
+              <ComboBoxItem Content="20 帧/秒" Tag="20" />
+            </ComboBox>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBlock Text="大小" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
+            <ComboBox x:Name="GifTarget" Width="168" SelectionChanged="Settings_Changed">
+              <ComboBoxItem Content="微信直接发送（≤10 MB）" Tag="10485760" IsSelected="True" />
+              <ComboBoxItem Content="不压缩" Tag="0" />
+            </ComboBox>
+          </StackPanel>
+        </StackPanel>
+        <StackPanel x:Name="VideoPanel" Margin="0,12,0,0" Visibility="Collapsed">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="帧率" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
+            <ComboBox x:Name="VideoFps" Width="96" SelectionChanged="Settings_Changed">
+              <ComboBoxItem Content="24 帧/秒" Tag="24" />
+              <ComboBoxItem Content="30 帧/秒" Tag="30" IsSelected="True" />
+            </ComboBox>
+          </StackPanel>
+        </StackPanel>
+        <TextBlock x:Name="EstimateText" Style="{StaticResource BodyText}" Margin="0,10,0,0" />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="2" Margin="0,16,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="StatusText" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <Button Content="取消" Click="Cancel_Click" Padding="18,8" Margin="0,0,8,0" />
+        <Button x:Name="SaveButton" Content="保存" Style="{StaticResource PrimaryButton}"
+                Click="Save_Click" Padding="22,9" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

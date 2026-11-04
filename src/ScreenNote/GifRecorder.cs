@@ -1,10 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Drawing = System.Drawing;
 
@@ -20,23 +18,32 @@ internal static class GifRecorder
     internal static readonly TimeSpan MaximumDuration = TimeSpan.FromSeconds(60);
     internal const long MaximumBytes = 50 * 1024 * 1024;
 
-    internal static Drawing.Size OutputSize(Drawing.Size source)
+    internal static Drawing.Size OutputSize(Drawing.Size source) => OutputSize(source, MaximumEdge);
+
+    internal static Drawing.Size OutputSize(Drawing.Size source, int maximumEdge)
     {
         if (source.Width < 2 || source.Height < 2) throw new ArgumentOutOfRangeException(nameof(source));
-        var scale = Math.Min(1d, MaximumEdge / (double)Math.Max(source.Width, source.Height));
+        var scale = Math.Min(1d, Math.Max(2, maximumEdge) / (double)Math.Max(source.Width, source.Height));
         return new Drawing.Size(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
     }
 
     internal static Task<GifRecordingResult> RecordAsync(Drawing.Rectangle region, string dataDirectory,
+        CancellationToken stop, IProgress<GifRecordingProgress>? progress = null)
+        => RecordAsync(region, RecordOptions.Gif(), dataDirectory, stop, progress);
+
+    internal static Task<GifRecordingResult> RecordAsync(Drawing.Rectangle region, RecordOptions options, string dataDirectory,
         CancellationToken stop, IProgress<GifRecordingProgress>? progress = null) => Task.Run(() =>
     {
-        using var capture = new RegionCapture(region);
-        return Record(capture.NextFrame, capture.Size, dataDirectory, stop, progress, MaximumDuration, MaximumBytes);
+        var size = OutputSize(region.Size, options.MaximumEdge);
+        using var capture = new RegionCapture(region, size);
+        return Record(capture.NextFrame, size, dataDirectory, stop, progress,
+            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond);
     });
 
     // The injectable frame source lets the complete recording path be tested without reading the desktop.
     internal static GifRecordingResult Record(Func<BitmapSource> nextFrame, Drawing.Size size, string dataDirectory,
-        CancellationToken stop, IProgress<GifRecordingProgress>? progress, TimeSpan maximumDuration, long maximumBytes)
+        CancellationToken stop, IProgress<GifRecordingProgress>? progress, TimeSpan maximumDuration, long maximumBytes,
+        int framesPerSecond = FramesPerSecond)
     {
         stop.ThrowIfCancellationRequested();
         var folder = Path.Combine(dataDirectory, "recordings");
@@ -57,9 +64,10 @@ internal static class GifRecorder
                     long previousTicks = 0;
                     var reason = "";
                     TimeSpan endedAt;
+                    var frameInterval = TimeSpan.FromSeconds(1d / Math.Max(1, framesPerSecond));
                     while (true)
                     {
-                        var wait = TimeSpan.FromSeconds(1d / FramesPerSecond) - (clock.Elapsed - capturedAt);
+                        var wait = frameInterval - (clock.Elapsed - capturedAt);
                         if (wait > TimeSpan.Zero) stop.WaitHandle.WaitOne(wait);
                         endedAt = clock.Elapsed < maximumDuration ? clock.Elapsed : maximumDuration;
                         var finishing = stop.IsCancellationRequested || endedAt >= maximumDuration || output.Position >= maximumBytes;
@@ -71,7 +79,9 @@ internal static class GifRecorder
                         progress?.Report(new GifRecordingProgress(endedAt, writer.FrameCount, output.Position));
                         if (finishing)
                         {
-                            reason = endedAt >= maximumDuration ? "已达到 60 秒上限" : output.Position >= maximumBytes ? "已达到约 50 MB 上限" : "";
+                            reason = endedAt >= maximumDuration
+                                ? "已达到 " + Math.Round(maximumDuration.TotalSeconds) + " 秒上限"
+                                : output.Position >= maximumBytes ? "已达到约 " + Math.Max(1, maximumBytes / (1024 * 1024)) + " MB 上限" : "";
                             break;
                         }
                         pending = next!; capturedAt = endedAt;
@@ -88,51 +98,5 @@ internal static class GifRecorder
             try { File.Delete(partial); } catch { }
             throw;
         }
-    }
-
-    private sealed class RegionCapture : IDisposable
-    {
-        private readonly Drawing.Rectangle _region;
-        private readonly Drawing.Bitmap _desktop, _scaled;
-        private readonly Drawing.Graphics _graphics, _resize;
-        internal Drawing.Size Size { get; }
-        internal RegionCapture(Drawing.Rectangle region)
-        {
-            Size = OutputSize(region.Size); _region = region;
-            _desktop = new Drawing.Bitmap(region.Width, region.Height, Drawing.Imaging.PixelFormat.Format32bppRgb);
-            _scaled = new Drawing.Bitmap(Size.Width, Size.Height, Drawing.Imaging.PixelFormat.Format32bppRgb);
-            _graphics = Drawing.Graphics.FromImage(_desktop); _resize = Drawing.Graphics.FromImage(_scaled);
-            _resize.InterpolationMode = Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-        }
-        internal BitmapSource NextFrame()
-        {
-            _graphics.CopyFromScreen(_region.Location, Drawing.Point.Empty, _region.Size, Drawing.CopyPixelOperation.SourceCopy);
-            var cursor = new CursorInfo { Size = Marshal.SizeOf<CursorInfo>() };
-            if (GetCursorInfo(ref cursor) && (cursor.Flags & 1) != 0 && GetIconInfo(cursor.Cursor, out var icon))
-            {
-                try
-                {
-                    var hdc = _graphics.GetHdc();
-                    try { DrawIconEx(hdc, cursor.Position.X - _region.X - (int)icon.HotspotX, cursor.Position.Y - _region.Y - (int)icon.HotspotY, cursor.Cursor, 0, 0, 0, 0, 3); }
-                    finally { _graphics.ReleaseHdc(hdc); }
-                }
-                finally { if (icon.Mask != 0) DeleteObject(icon.Mask); if (icon.Color != 0) DeleteObject(icon.Color); }
-            }
-            _resize.DrawImage(_desktop, new Drawing.Rectangle(Drawing.Point.Empty, Size), 0, 0, _region.Width, _region.Height, Drawing.GraphicsUnit.Pixel);
-            var data = _scaled.LockBits(new Drawing.Rectangle(Drawing.Point.Empty, Size), Drawing.Imaging.ImageLockMode.ReadOnly, Drawing.Imaging.PixelFormat.Format32bppRgb);
-            try
-            {
-                var image = BitmapSource.Create(Size.Width, Size.Height, 96, 96, PixelFormats.Bgr32, null, data.Scan0, data.Stride * Size.Height, data.Stride);
-                image.Freeze(); return image;
-            }
-            finally { _scaled.UnlockBits(data); }
-        }
-        public void Dispose() { _resize.Dispose(); _graphics.Dispose(); _scaled.Dispose(); _desktop.Dispose(); }
-        [StructLayout(LayoutKind.Sequential)] private struct CursorInfo { public int Size, Flags; public nint Cursor; public Drawing.Point Position; }
-        [StructLayout(LayoutKind.Sequential)] private struct IconInfo { [MarshalAs(UnmanagedType.Bool)] public bool Icon; public uint HotspotX, HotspotY; public nint Mask, Color; }
-        [DllImport("user32.dll")] private static extern bool GetCursorInfo(ref CursorInfo info);
-        [DllImport("user32.dll")] private static extern bool GetIconInfo(nint icon, out IconInfo info);
-        [DllImport("user32.dll")] private static extern bool DrawIconEx(nint hdc, int x, int y, nint icon, int width, int height, uint step, nint brush, uint flags);
-        [DllImport("gdi32.dll")] private static extern bool DeleteObject(nint handle);
     }
 }

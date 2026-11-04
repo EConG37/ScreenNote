@@ -11,6 +11,8 @@
     <Compile Include="gif-recording-validation.cs" />
     <Compile Include="../src/ScreenNote/AnimatedGifWriter.cs" Link="AnimatedGifWriter.cs" />
     <Compile Include="../src/ScreenNote/GifRecorder.cs" Link="GifRecorder.cs" />
+    <Compile Include="../src/ScreenNote/RecordOptions.cs" Link="RecordOptions.cs" />
+    <Compile Include="../src/ScreenNote/RegionCapture.cs" Link="RegionCapture.cs" />
     <Compile Include="../src/ScreenNote/GifClipboard.cs" Link="GifClipboard.cs" />
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />

@@ -67,6 +67,7 @@ if ($Package -or $PackagePath) {
 "@
     [IO.File]::WriteAllText((Join-Path $publishRoot '离线包说明.txt'), $readme, [Text.UTF8Encoding]::new($true))
     $temporaryArchive = $archivePath + '.partial-' + [Guid]::NewGuid().ToString('N') + '.zip'
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     try {
         # Screenshot data can live beside the executable. Package program files only.
@@ -91,8 +92,9 @@ if ($Package -or $PackagePath) {
         $archive = [IO.Compression.ZipFile]::Open($temporaryArchive, [IO.Compression.ZipArchiveMode]::Create)
         try {
             foreach ($file in $includedFiles) {
-                $relativePath = [IO.Path]::GetRelativePath($publishFullPath, $file).Replace('\','/')
-                [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file, $relativePath, [IO.Compression.CompressionLevel]::Optimal)
+                $filePath = ([IO.FileInfo]$file).FullName
+                $relativePath = $filePath.Substring($publishFullPath.Length + 1).Replace('\','/')
+                [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $filePath, $relativePath, [IO.Compression.CompressionLevel]::Optimal)
             }
         }
         finally { $archive.Dispose() }
