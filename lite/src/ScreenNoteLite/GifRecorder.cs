@@ -18,23 +18,32 @@ internal static class GifRecorder
     internal static readonly TimeSpan MaximumDuration = TimeSpan.FromSeconds(60);
     internal const long MaximumBytes = 50 * 1024 * 1024;
 
-    internal static Drawing.Size OutputSize(Drawing.Size source)
+    internal static Drawing.Size OutputSize(Drawing.Size source) => OutputSize(source, MaximumEdge);
+
+    internal static Drawing.Size OutputSize(Drawing.Size source, int maximumEdge)
     {
         if (source.Width < 2 || source.Height < 2) throw new ArgumentOutOfRangeException(nameof(source));
-        var scale = Math.Min(1d, MaximumEdge / (double)Math.Max(source.Width, source.Height));
+        var scale = Math.Min(1d, Math.Max(2, maximumEdge) / (double)Math.Max(source.Width, source.Height));
         return new Drawing.Size(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
     }
 
     internal static Task<GifRecordingResult> RecordAsync(Drawing.Rectangle region, string dataDirectory,
+        CancellationToken stop, IProgress<GifRecordingProgress>? progress = null)
+        => RecordAsync(region, RecordOptions.Gif(), dataDirectory, stop, progress);
+
+    internal static Task<GifRecordingResult> RecordAsync(Drawing.Rectangle region, RecordOptions options, string dataDirectory,
         CancellationToken stop, IProgress<GifRecordingProgress>? progress = null) => Task.Run(() =>
     {
-        using var capture = new RegionCapture(region);
-        return Record(capture.NextFrame, capture.Size, dataDirectory, stop, progress, MaximumDuration, MaximumBytes);
+        var size = OutputSize(region.Size, options.MaximumEdge);
+        using var capture = new RegionCapture(region, size);
+        return Record(capture.NextFrame, size, dataDirectory, stop, progress,
+            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond);
     });
 
     // The injectable frame source lets the complete recording path be tested without reading the desktop.
     internal static GifRecordingResult Record(Func<BitmapSource> nextFrame, Drawing.Size size, string dataDirectory,
-        CancellationToken stop, IProgress<GifRecordingProgress>? progress, TimeSpan maximumDuration, long maximumBytes)
+        CancellationToken stop, IProgress<GifRecordingProgress>? progress, TimeSpan maximumDuration, long maximumBytes,
+        int framesPerSecond = FramesPerSecond)
     {
         stop.ThrowIfCancellationRequested();
         var folder = Path.Combine(dataDirectory, "recordings");
@@ -55,9 +64,10 @@ internal static class GifRecorder
                     long previousTicks = 0;
                     var reason = "";
                     TimeSpan endedAt;
+                    var frameInterval = TimeSpan.FromSeconds(1d / Math.Max(1, framesPerSecond));
                     while (true)
                     {
-                        var wait = TimeSpan.FromSeconds(1d / FramesPerSecond) - (clock.Elapsed - capturedAt);
+                        var wait = frameInterval - (clock.Elapsed - capturedAt);
                         if (wait > TimeSpan.Zero) stop.WaitHandle.WaitOne(wait);
                         endedAt = clock.Elapsed < maximumDuration ? clock.Elapsed : maximumDuration;
                         var finishing = stop.IsCancellationRequested || endedAt >= maximumDuration || output.Position >= maximumBytes;
@@ -69,7 +79,9 @@ internal static class GifRecorder
                         progress?.Report(new GifRecordingProgress(endedAt, writer.FrameCount, output.Position));
                         if (finishing)
                         {
-                            reason = endedAt >= maximumDuration ? "已达到 60 秒上限" : output.Position >= maximumBytes ? "已达到约 50 MB 上限" : "";
+                            reason = endedAt >= maximumDuration
+                                ? "已达到 " + Math.Round(maximumDuration.TotalSeconds) + " 秒上限"
+                                : output.Position >= maximumBytes ? "已达到约 " + Math.Max(1, maximumBytes / (1024 * 1024)) + " MB 上限" : "";
                             break;
                         }
                         pending = next!; capturedAt = endedAt;

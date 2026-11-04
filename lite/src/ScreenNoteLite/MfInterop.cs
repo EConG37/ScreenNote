@@ -22,12 +22,50 @@ internal static class Mf
     internal static extern int MFCreateSinkWriterFromURL([MarshalAs(UnmanagedType.LPWStr)] string url,
         nint byteStream, IMFAttributes? attributes, out IMFSinkWriter writer);
 
+    [DllImport("mfreadwrite.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    internal static extern int MFCreateSourceReaderFromURL([MarshalAs(UnmanagedType.LPWStr)] string url,
+        IMFAttributes? attributes, out IMFSourceReader reader);
+
     internal static void Check(int hr, string operation)
     {
-        if (hr < 0) throw new InvalidOperationException($"系统视频编码组件调用失败（{operation}，0x{unchecked((uint)hr):X8}）。");
+        if (hr < 0) throw new InvalidOperationException($"系统视频组件调用失败（{operation}，0x{unchecked((uint)hr):X8}）。");
     }
 
     internal static ulong Pack(uint high, uint low) => ((ulong)high << 32) | low;
+
+    internal static void Set(IMFAttributes attributes, Guid key, uint value) => Check(attributes.SetUINT32(ref key, value), "SetUINT32");
+    internal static void Set(IMFMediaType type, Guid key, uint value) => Check(type.SetUINT32(ref key, value), "SetUINT32");
+    internal static void Set64(IMFMediaType type, Guid key, ulong value) => Check(type.SetUINT64(ref key, value), "SetUINT64");
+    internal static void SetFormat(IMFAttributes attributes, Guid key, Guid value) => Check(attributes.SetGUID(ref key, ref value), "SetGUID");
+    internal static void SetFormat(IMFMediaType type, Guid key, Guid value) => Check(type.SetGUID(ref key, ref value), "SetGUID");
+    internal static ulong GetUInt64(IMFAttributes attributes, Guid key)
+    {
+        var hr = attributes.GetUINT64(ref key, out var value);
+        Check(hr, "GetUINT64");
+        return value;
+    }
+
+    internal static ulong GetUInt64(IMFMediaType type, Guid key)
+    {
+        var hr = type.GetUINT64(ref key, out var value);
+        Check(hr, "GetUINT64");
+        return value;
+    }
+
+    internal static void ReleaseCom(object? com)
+    {
+        if (com != null && Marshal.IsComObject(com)) Marshal.FinalReleaseComObject(com);
+    }
+
+    /// <summary>Stream and flag constants of the source reader.</summary>
+    internal static class Reader
+    {
+        internal const uint AllStreams = 0xFFFFFFFE;
+        internal const uint FirstVideoStream = 0xFFFFFFFC;
+        internal const uint EndOfStream = 0x2;
+        internal const uint NativeMediaTypeChanged = 0x10;
+        internal const uint CurrentMediaTypeChanged = 0x20;
+    }
 
     internal static class MediaTypes
     {
@@ -56,6 +94,9 @@ internal static class Mf
         internal static readonly Guid AudioAverageBytesPerSecond = new("1aab75c8-cfef-451c-ab95-ac034b8e1731");
         internal static readonly Guid EnableHardwareTransforms = new("a634a91c-822b-41b9-a494-4de4643612b0");
         internal static readonly Guid DisableThrottling = new("08b845d8-2b74-4afe-9d53-be16d2d5ae4f");
+        // Lets the source reader convert decoded frames to RGB32 for editing.
+        internal static readonly Guid EnableVideoProcessing = new("fb394f3d-ccf1-42ee-bbb3-f9b845d5681d");
+        internal static readonly Guid DefaultStride = new("644b4e48-1e02-4516-b0eb-c01ca9d49ac6");
         // Forces the MP4 muxer regardless of the output file extension (recordings start as .partial).
         internal static readonly Guid TranscodeContainerType = new("150ff23f-4abc-478b-ac4f-e1916fba1cca");
         internal static readonly Guid ContainerTypeMpeg4 = new("dc6cd05d-b9d0-40ef-bd35-fa622c1ab28a");
@@ -213,5 +254,21 @@ internal static class Mf
         [PreserveSig] int Finalize();
         [PreserveSig] int GetServiceForStream(uint streamIndex, ref Guid service, ref Guid iid, nint value);
         [PreserveSig] int GetStatistics(uint streamIndex, nint statistics);
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("70ae66f2-c809-4e4f-8915-bdcb406b7993")]
+    internal interface IMFSourceReader
+    {
+        [PreserveSig] int GetStreamSelection(uint streamIndex, out int selected);
+        [PreserveSig] int SetStreamSelection(uint streamIndex, int selected);
+        [PreserveSig] int GetNativeMediaType(uint streamIndex, uint mediaTypeIndex, out IMFMediaType mediaType);
+        [PreserveSig] int GetCurrentMediaType(uint streamIndex, out IMFMediaType mediaType);
+        [PreserveSig] int SetCurrentMediaType(uint streamIndex, nint reserved, IMFMediaType mediaType);
+        [PreserveSig] int SetCurrentPosition(ref Guid timeFormat, nint position);
+        [PreserveSig] int ReadSample(uint streamIndex, uint flags, out uint actualStreamIndex,
+            out uint streamFlags, out long timestamp, out IMFSample? sample);
+        [PreserveSig] int Flush(uint streamIndex);
+        [PreserveSig] int GetServiceForStream(uint streamIndex, ref Guid service, nint target);
+        [PreserveSig] int GetPresentationAttribute(uint streamIndex, ref Guid attribute, nint value);
     }
 }

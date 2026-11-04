@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
@@ -38,8 +38,7 @@ public partial class MainWindow : Window
     private bool _ready, _quitting, _capturing, _sending, _syncingStyle;
     private int _documentRevision;
     private readonly string[] _args;
-    private GifRecordingWindow? _gifRecording;
-    private VideoRecordingWindow? _videoRecording;
+    private Window? _recorder;
 
     public MainWindow(string[] args)
     {
@@ -88,8 +87,6 @@ public partial class MainWindow : Window
             if (_capturing)
             {
                 if (ActivateCompositionWindow()) return;
-                if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; }
-                if (_videoRecording?.IsVisible == true) { _videoRecording.Activate(); return; }
                 Application.Current.Windows.OfType<CaptureWindow>().FirstOrDefault(window => window.IsVisible)?.Activate();
                 return;
             }
@@ -198,8 +195,8 @@ public partial class MainWindow : Window
         if (_quitting || App.IsTestMode) return;
         e.Cancel = true; Hide();
     }
-    private void ShowWorkspace() { if (_gifRecording?.IsVisible == true) { _gifRecording.Activate(); return; } if (_videoRecording?.IsVisible == true) { _videoRecording.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
-    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } if (_gifRecording != null) await _gifRecording.DiscardAndCloseAsync(); if (_videoRecording != null) await _videoRecording.DiscardAndCloseAsync(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
+    private void ShowWorkspace() { if (_recorder?.IsVisible == true) { _recorder.Activate(); return; } if (ActivateCompositionWindow()) return; Show(); WindowState = WindowState.Normal; Activate(); }
+    private async void Quit() { if (_changingStorage) { ShowWorkspace(); SetStatus("正在迁移资料，请完成后再退出。"); return; } if (!SaveCurrentHistory()) { ShowWorkspace(); return; } _recorder?.Close(); _scrollCapture?.Close(); _collageWindow?.Close(); _autoSaveTimer.Stop(); _quitting = true; Close(); Application.Current.Shutdown(); }
     private void SetStatus(string message) { StatusText.Text = message; }
     private async void Capture_Click(object sender, RoutedEventArgs e) => await CaptureAsync();
     private async Task CaptureAsync()
@@ -221,19 +218,10 @@ public partial class MainWindow : Window
             {
                 await CaptureScrollAsync(selector.SelectedScreenBounds, wasVisible);
             }
-            else if (completed == true && selector.Action == CaptureAction.RecordGif)
+            else if (completed == true && selector.Action is CaptureAction.RecordGif or CaptureAction.RecordVideo)
             {
-                _gifRecording = new GifRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
-                try { _gifRecording.ShowDialog(); }
-                finally { _gifRecording = null; }
-                if (wasVisible) ShowWorkspace();
-            }
-            else if (completed == true && selector.Action == CaptureAction.RecordVideo)
-            {
-                _videoRecording = new VideoRecordingWindow(selector.SelectedScreenBounds, App.DataDirectory);
-                try { _videoRecording.ShowDialog(); }
-                finally { _videoRecording = null; }
-                if (wasVisible) ShowWorkspace();
+                var options = selector.Action == CaptureAction.RecordVideo ? RecordOptions.Video() : RecordOptions.Gif();
+                await RecordRegionAsync(options, selector.SelectedScreenBounds, wasVisible);
             }
             else if (completed == true && selector.CapturedImage != null)
             {
@@ -245,6 +233,62 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowWorkspace(); SetStatus("截图未完成：" + ex.Message); }
         finally { if (ownsCaptureGate) _capturing = false; RefreshHistoryActions(); }
     }
+    private async void Record_Click(object sender, RoutedEventArgs e) => await RecordAsync();
+
+    private async Task RecordAsync()
+    {
+        if (_capturing || _changingStorage) return;
+        if (!SaveCurrentHistory()) return;
+        CancelPendingWork();
+        _capturing = true; RefreshHistoryActions();
+        var wasVisible = IsVisible; Hide();
+        try
+        {
+            await Task.Delay(160);
+            var picker = new RecordWindow();
+            if (picker.ShowDialog() != true) { if (wasVisible) ShowWorkspace(); return; }
+            if (!string.IsNullOrEmpty(picker.CompressExistingPath))
+            {
+                await CompressExistingGifAsync(picker.CompressExistingPath);
+                if (wasVisible) ShowWorkspace();
+                return;
+            }
+            var selector = new CaptureWindow { SelectedAiTarget = CurrentTarget };
+            selector.UseSelectionOnly(picker.Options.IsVideo ? "开始录制视频" : "开始录制 GIF");
+            if (selector.ShowDialog() != true) { if (wasVisible) ShowWorkspace(); return; }
+            await RecordRegionAsync(picker.Options, selector.SelectedScreenBounds, wasVisible);
+        }
+        catch (Exception ex) { ShowWorkspace(); SetStatus("录制未完成：" + ex.Message); }
+        finally { _capturing = false; RefreshHistoryActions(); }
+    }
+
+    private async Task RecordRegionAsync(RecordOptions options, System.Drawing.Rectangle bounds, bool wasVisible)
+    {
+        var window = new RecordingWindow(options, bounds, App.DataDirectory);
+        _recorder = window;
+        try { window.ShowDialog(); }
+        finally { _recorder = null; }
+        var outcome = window.Outcome;
+        if (outcome is null) { if (wasVisible) ShowWorkspace(); return; }
+        var editor = new RecordEditorWindow(outcome.Path);
+        if (editor.ShowDialog() == true && editor.ResultPath is { Length: > 0 } exported)
+            SetStatus("已导出：" + Path.GetFileName(exported));
+        else
+            SetStatus("录制已保留：" + Path.GetFileName(outcome.Path));
+        if (wasVisible) ShowWorkspace();
+    }
+
+    private async Task CompressExistingGifAsync(string path)
+    {
+        try
+        {
+            SetStatus("正在压缩 GIF…");
+            var result = await GifCompressor.CompressAsync(path, App.DataDirectory, CancellationToken.None);
+            SetStatus("已压缩到 " + Math.Round(result.Bytes / 1048576d, 1) + " MB：" + Path.GetFileName(result.Path));
+        }
+        catch (Exception ex) { SetStatus("压缩失败：" + ex.Message); }
+    }
+
     internal void CompleteCapture(BitmapSource image, CaptureAction action)
     {
         if (action == CaptureAction.Edit)

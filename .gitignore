@@ -6,8 +6,8 @@ output/
 *.user
 
 # Local runtime and models are distributed with the Windows release package.
-/src/ScreenNote/ocr-runtime/
-/src/ScreenNote/translation-models/
+/archive/full-version/src/ScreenNote/ocr-runtime/
+/archive/full-version/src/ScreenNote/translation-models/
 
 # Local settings, browser pairing and development credentials.
 settings.json
@@ -23,3 +23,6 @@ __pycache__/
 
 # ZCode session state
 .zcode/
+
+# Local market research notes stay out of the public repository.
+/marketing-research/

@@ -18,9 +18,11 @@ internal static class VideoRecorder
     internal static readonly TimeSpan MaximumDuration = TimeSpan.FromMinutes(5);
     internal const long MaximumBytes = 500L * 1024 * 1024;
 
-    internal static Drawing.Size OutputSize(Drawing.Size source)
+    internal static Drawing.Size OutputSize(Drawing.Size source) => OutputSize(source, GifRecorder.MaximumEdge);
+
+    internal static Drawing.Size OutputSize(Drawing.Size source, int maximumEdge)
     {
-        var size = GifRecorder.OutputSize(source);
+        var size = GifRecorder.OutputSize(source, maximumEdge);
         // H.264 encoders require even frame dimensions.
         return new Drawing.Size(Math.Max(2, size.Width & ~1), Math.Max(2, size.Height & ~1));
     }
@@ -34,12 +36,23 @@ internal static class VideoRecorder
         return Record(capture.NextFrame, size, dataDirectory, audio, stop, progress, MaximumDuration, MaximumBytes);
     });
 
+    internal static Task<VideoRecordingResult> RecordAsync(Drawing.Rectangle region, RecordOptions options,
+        string dataDirectory, CancellationToken stop, IProgress<VideoRecordingProgress>? progress = null) => Task.Run(() =>
+    {
+        var size = OutputSize(region.Size, options.MaximumEdge);
+        using var capture = new RegionCapture(region, size);
+        using var audio = new AudioCaptureSession(options.SystemSound, options.Microphone);
+        return Record(capture.NextFrame, size, dataDirectory, audio, stop, progress,
+            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond);
+    });
+
     // The injectable frame source lets the complete recording path be tested without reading the desktop.
     // All Media Foundation calls stay on this thread: the sink writer's COM wrappers are apartment-bound.
     internal static VideoRecordingResult Record(Func<BitmapSource> nextFrame, Drawing.Size size, string dataDirectory,
         AudioCaptureSession? audio, CancellationToken stop, IProgress<VideoRecordingProgress>? progress,
-        TimeSpan maximumDuration, long maximumBytes)
+        TimeSpan maximumDuration, long maximumBytes, int framesPerSecond = FramesPerSecond)
     {
+        var fps = Math.Clamp(framesPerSecond, 1, 120);
         stop.ThrowIfCancellationRequested();
         var folder = Path.Combine(dataDirectory, "recordings");
         Directory.CreateDirectory(folder);
@@ -50,7 +63,7 @@ internal static class VideoRecorder
         {
             audio?.Prepare();
             var audioNote = audio?.Note.Trim() ?? "";
-            writer = new Mp4Writer(partial, size.Width, size.Height, FramesPerSecond, audio?.Active == true ? audio.SampleRate : 0);
+            writer = new Mp4Writer(partial, size.Width, size.Height, fps, audio?.Active == true ? audio.SampleRate : 0);
             var audioChunks = new ConcurrentQueue<byte[]>();
             var audioSamples = 0L;
             var audioRate = audio?.SampleRate ?? 48000;
@@ -69,7 +82,7 @@ internal static class VideoRecorder
             var endedAt = TimeSpan.Zero;
             var reason = "";
             var clock = Stopwatch.StartNew();
-            var frameTicks = TimeSpan.TicksPerSecond / FramesPerSecond;
+            var frameTicks = TimeSpan.TicksPerSecond / fps;
             // Capture before encoding: slow compression reduces FPS without speeding up the playback clock.
             var pendingFrame = nextFrame();
             var poster = pendingFrame;
@@ -88,15 +101,18 @@ internal static class VideoRecorder
                     writer.WriteVideoFrame(pendingFrame, pendingTime, finishing ? frameTicks : Math.Max(1, now - pendingTime));
                     frames++;
                     endedAt = TimeSpan.FromTicks(now);
-                    if (frames % FramesPerSecond == 0) progress?.Report(new VideoRecordingProgress(endedAt, frames, PartialSize(partial)));
+                    if (frames % fps == 0) progress?.Report(new VideoRecordingProgress(endedAt, frames, PartialSize(partial)));
                     if (finishing)
                     {
-                        if (now >= maximumDuration.Ticks) reason = "已达到 5 分钟上限";
+                        if (now >= maximumDuration.Ticks)
+                        {
+                            reason = "已达到 " + Math.Round(maximumDuration.TotalSeconds) + " 秒上限";
+                        }
                         break;
                     }
                     if (PartialSize(partial) >= maximumBytes)
                     {
-                        reason = "已达到约 500 MB 上限";
+                        reason = "已达到约 " + Math.Max(1, maximumBytes / (1024 * 1024)) + " MB 上限";
                         break;
                     }
                     pendingFrame = next!;
