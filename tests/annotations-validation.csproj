@@ -17,6 +17,9 @@
     <Compile Include="annotations-validation.cs" />
     <Compile Include="../src/ScreenNote/AnnotationSurface.cs" Link="AnnotationSurface.cs" />
     <Compile Include="../src/ScreenNote/CaptureWindow.cs" Link="CaptureWindow.cs" />
+    <Compile Include="../src/ScreenNote/CaptureWindow.EditTools.cs" Link="CaptureWindow.EditTools.cs" />
+    <Compile Include="../src/ScreenNote/ToolGlyph.cs" Link="ToolGlyph.cs" />
+    <Compile Include="../src/ScreenNote/WindowRegionDetector.cs" Link="WindowRegionDetector.cs" />
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>
