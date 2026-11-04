@@ -49,6 +49,8 @@ internal static class RecordFlowUi
             CheckMainWindowFlow(folder);
 
             app.Shutdown();
+            var stale = Path.Combine(folder, "failure.txt");
+            if (File.Exists(stale)) File.Delete(stale);
             File.WriteAllText(Path.Combine(folder, "result.txt"), $"PASS: {_checks} recording flow checks.");
             Console.WriteLine($"PASS: {_checks} recording flow checks. Artifacts: {folder}");
             return 0;
