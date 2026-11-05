@@ -22,7 +22,7 @@ internal static class SelfTests
         var completionLabels = completionPanel.Children.OfType<System.Windows.Controls.Button>()
             .Select(button => ((System.Windows.Controls.StackPanel)button.Content).Children
                 .OfType<System.Windows.Controls.TextBlock>().Single().Text).ToArray();
-        Check(string.Join(",", completionLabels) == "取消,编辑,下载,复制", "Capture bar shows cancel, edit, download, copy in order");
+        Check(string.Join(",", completionLabels) == "取消,编辑,保存,复制", "Capture bar shows cancel, edit, save, copy in order");
         desktopCapture.Close();
         Check(HotkeyService.TryParse("Ctrl+Alt+A", out var modifiers, out var key) && modifiers == 3 && key == 65, "Global shortcut parsing");
         Check(!HotkeyService.TryParse("A", out _, out _) && !HotkeyService.TryParse("Ctrl+Unknown", out _, out _), "Reject invalid shortcuts");

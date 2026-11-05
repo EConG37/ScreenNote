@@ -17,6 +17,24 @@ public partial class MainWindow
         window.Activate(); return true;
     }
 
+    private async void Scroll_Click(object sender, RoutedEventArgs e)
+    {
+        if (_capturing || _changingStorage || !SaveCurrentHistory()) return;
+        CancelPendingWork();
+        _capturing = true; RefreshHistoryActions();
+        var wasVisible = IsVisible; Hide();
+        try
+        {
+            await Task.Delay(180);
+            var selector = new CaptureWindow();
+            selector.UseSelectionOnly("开始滚动截图");
+            if (selector.ShowDialog() != true) { if (wasVisible) ShowWorkspace(); return; }
+            await CaptureScrollAsync(selector.SelectedScreenBounds, wasVisible);
+        }
+        catch (Exception ex) { ShowWorkspace(); SetStatus("滚动截图未完成：" + ex.Message); }
+        finally { _capturing = false; RefreshHistoryActions(); }
+    }
+
     private void Collage_Click(object sender, RoutedEventArgs e)
     {
         if (_capturing || _changingStorage || !SaveCurrentHistory()) return;

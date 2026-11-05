@@ -28,14 +28,14 @@ internal sealed class CollageFrame(BitmapSource image, string label) : System.Co
 internal sealed class CollageWindow : Window
 {
     private readonly ObservableCollection<CollageFrame> _frames = [];
-    private readonly ListBox _list = new() { Margin = new Thickness(0, 0, 14, 0), BorderThickness = new Thickness(0), Background = Brushes.White };
+    private readonly ListBox _list = new() { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12) };
-    private readonly ScrollViewer _previewHost = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Background = new SolidColorBrush(Color.FromRgb(229, 231, 225)) };
+    private readonly ScrollViewer _previewHost = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Background = new SolidColorBrush(Color.FromRgb(235, 240, 250)) };
     private readonly ComboBox _layout = new() { Width = 124, Margin = new Thickness(0, 0, 16, 0) };
     private readonly Slider _subtitle = new() { Minimum = 5, Maximum = 60, Value = 20, Width = 100, VerticalAlignment = VerticalAlignment.Center };
     private readonly Slider _stagger = new() { Minimum = 0, Maximum = 80, Value = 16, Width = 80, VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _width = new() { Width = 90 };
-    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 10, 0, 8) };
+    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 21, Margin = new Thickness(0, 12, 0, 10) };
     private readonly TextBlock _subtitleLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _staggerLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly DispatcherTimer _renderTimer = new() { Interval = TimeSpan.FromMilliseconds(160) };
@@ -45,7 +45,7 @@ internal sealed class CollageWindow : Window
     private bool _adding, _closed, _syncCrop;
     private string? _notice;
     private readonly SubtitleCropControl _cropEditor = new();
-    private readonly TextBlock _cropHint = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6), Foreground = Brushes.DimGray };
+    private readonly TextBlock _cropHint = new() { TextWrapping = TextWrapping.Wrap, FontSize = 13, LineHeight = 20, Margin = new Thickness(0, 8, 0, 10) };
     private readonly Slider _cropTop = new() { Minimum = 0, Maximum = 97 };
     private readonly Slider _cropBottom = new() { Minimum = 3, Maximum = 100 };
     private readonly ComboBox _previewZoom = new() { Width = 104 };
@@ -59,23 +59,34 @@ internal sealed class CollageWindow : Window
     internal CollageWindow(System.Collections.Generic.IEnumerable<CollageFrame> images, Func<Task<BitmapSource?>> capture)
     {
         _capture = capture; foreach (var frame in images.Take(20)) _frames.Add(frame);
+        Style = (Style)Application.Current.FindResource(typeof(Window));
         Title = "拾屏 精简版 · 多图与台词拼图"; Icon = AppIcon.WindowImage;
         Width = 1280; Height = 900; MinWidth = 900; MinHeight = 620; WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var root = new Grid { Margin = new Thickness(22) };
+        Background = StudioUi.Brush("Canvas");
+        _status.Foreground = _cropHint.Foreground = StudioUi.Brush("Muted");
+        _list.Resources[SystemColors.HighlightBrushKey] = StudioUi.Brush("AccentSoft");
+        _list.Resources[SystemColors.HighlightTextBrushKey] = StudioUi.Brush("Accent");
+        _list.Resources[SystemColors.InactiveSelectionHighlightBrushKey] = StudioUi.Brush("AccentSoft");
+        _list.Resources[SystemColors.InactiveSelectionHighlightTextBrushKey] = StudioUi.Brush("Accent");
+        var root = new Grid { Margin = new Thickness(20) };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var top = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
-        var add = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var top = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        top.ColumnDefinitions.Add(new ColumnDefinition()); top.ColumnDefinitions.Add(new ColumnDefinition());
+        var add = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _captureButton = Button("继续截图", async () => await AddCaptureAsync());
         add.Children.Add(_captureButton); add.Children.Add(Button("添加图片", AddFiles));
-        var repeat = new CheckBox { Content = "连续框选", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0), ToolTip = "每次框选后继续下一张，按 Esc 返回拼图" };
+        var repeat = new CheckBox { Content = "连续框选", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 12, 0), ToolTip = "每次框选后继续下一张，按 Esc 返回拼图" };
         repeat.Checked += (_, _) => _repeatCapture = true; repeat.Unchecked += (_, _) => _repeatCapture = false; add.Children.Add(repeat);
-        DockPanel.SetDock(add, Dock.Right); top.Children.Add(add);
-        top.Children.Add(new TextBlock { Text = "多图与台词拼图", FontSize = 24, FontWeight = FontWeights.SemiBold });
+        Grid.SetColumn(add, 1); top.Children.Add(add);
+        var heading = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        heading.Children.Add(new ToolGlyph { Kind = "collage", Foreground = StudioUi.Brush("Accent"), Width = 28, Height = 28, Margin = new Thickness(0, 0, 12, 0) });
+        heading.Children.Add(new TextBlock { Text = "多图与台词拼图", FontSize = 24, FontWeight = FontWeights.SemiBold });
+        top.Children.Add(heading);
         root.Children.Add(top);
-        var options = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
+        var options = new WrapPanel();
         foreach (var label in new[] { "台词拼图", "竖向拼接", "横向拼接", "两列拼贴" }) _layout.Items.Add(label);
         _layout.SelectedIndex = 0; options.Children.Add(_layout);
         options.Children.Add(_subtitleLabel); options.Children.Add(_subtitle);
@@ -83,19 +94,24 @@ internal sealed class CollageWindow : Window
         options.Children.Add(_staggerLabel); options.Children.Add(_stagger);
         options.Children.Add(new TextBlock { Text = "输出宽度", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 6, 0) });
         foreach (var value in new[] { 640, 960, 1280, 1600 }) _width.Items.Add(value);
-        _width.SelectedItem = 960; options.Children.Add(_width); Grid.SetRow(options, 1); root.Children.Add(options);
-        var workspace = new Grid(); workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) }); workspace.ColumnDefinitions.Add(new ColumnDefinition());
-        var left = new DockPanel();
+        _width.SelectedItem = 960; options.Children.Add(_width);
+        var optionsPanel = StudioUi.Panel(options, new Thickness(16, 12, 16, 12)); optionsPanel.Margin = new Thickness(0, 0, 0, 14);
+        Grid.SetRow(optionsPanel, 1); root.Children.Add(optionsPanel);
+        var workspace = new Grid(); workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(332) }); workspace.ColumnDefinitions.Add(new ColumnDefinition());
+        var left = new Grid();
+        left.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        left.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.6, GridUnitType.Star) });
         var order = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
         order.Children.Add(Button("上移", () => Move(-1))); order.Children.Add(Button("下移", () => Move(1)));
         order.Children.Add(Button("移除", () => { if (_list.SelectedItem is CollageFrame frame) _frames.Remove(frame); }));
-        DockPanel.SetDock(order, Dock.Bottom); left.Children.Add(order);
-        var cropPanel = new StackPanel { Margin = new Thickness(0, 10, 14, 0) };
+        var cropPanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         cropPanel.Children.Add(new TextBlock { Text = "当前图片 · 台词范围", FontWeight = FontWeights.SemiBold });
         cropPanel.Children.Add(_cropHint); cropPanel.Children.Add(_cropEditor);
         cropPanel.Children.Add(new TextBlock { Text = "上边界", Margin = new Thickness(0, 6, 0, 0) }); cropPanel.Children.Add(_cropTop);
         cropPanel.Children.Add(new TextBlock { Text = "下边界" }); cropPanel.Children.Add(_cropBottom);
-        DockPanel.SetDock(cropPanel, Dock.Bottom); left.Children.Add(cropPanel);
+        cropPanel.Children.Add(order);
+        var cropScroll = new ScrollViewer { Content = cropPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Grid.SetRow(cropScroll, 1); left.Children.Add(cropScroll);
         _list.SelectionChanged += (_, _) => SyncCrop();
         _cropEditor.CropChanged += crop => UpdateCrop(crop);
         _cropTop.ValueChanged += (_, _) => { if (!_syncCrop) UpdateCrop(new SubtitleCrop(Math.Min(_cropTop.Value / 100, _cropBottom.Value / 100 - 0.03), _cropBottom.Value / 100)); };
@@ -109,7 +125,9 @@ internal sealed class CollageWindow : Window
         var image = new FrameworkElementFactory(typeof(Image)); image.SetBinding(Image.SourceProperty, new Binding("Image")); image.SetValue(FrameworkElement.HeightProperty, 88d); image.SetValue(Image.StretchProperty, Stretch.Uniform);
         item.AppendChild(image);
         var labelBlock = new FrameworkElementFactory(typeof(TextBlock)); labelBlock.SetBinding(TextBlock.TextProperty, new Binding("DisplayLabel")); labelBlock.SetValue(TextBlock.MarginProperty, new Thickness(0, 6, 0, 0)); labelBlock.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis); item.AppendChild(labelBlock);
-        _list.ItemTemplate = new DataTemplate { VisualTree = item }; left.Children.Add(_list); workspace.Children.Add(left);
+        _list.ItemTemplate = new DataTemplate { VisualTree = item }; left.Children.Add(_list);
+        var sourcePanel = StudioUi.Panel(left, new Thickness(14)); sourcePanel.Margin = new Thickness(0, 0, 14, 0);
+        workspace.Children.Add(sourcePanel);
         _previewHost.Content = _preview; _previewHost.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
         var resultPane = new DockPanel();
         var previewTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
@@ -118,36 +136,48 @@ internal sealed class CollageWindow : Window
         _previewZoom.SelectedIndex = 0; _previewZoom.SelectionChanged += (_, _) => ResizePreview(); previewTools.Children.Add(_previewZoom);
         previewTools.Children.Add(Button("放大查看", () => { _renderTimer.Stop(); Render(); if (_composed != null) new ImageViewerWindow(_composed) { Owner = this }.ShowDialog(); }));
         DockPanel.SetDock(previewTools, Dock.Top); resultPane.Children.Add(previewTools); resultPane.Children.Add(_previewHost);
-        Grid.SetColumn(resultPane, 1); workspace.Children.Add(resultPane);
+        var previewPanel = StudioUi.Panel(resultPane, new Thickness(14));
+        Grid.SetColumn(previewPanel, 1); workspace.Children.Add(previewPanel);
         Grid.SetRow(workspace, 2); root.Children.Add(workspace);
-        var footer = new StackPanel(); footer.Children.Add(_status);
+        var footer = new StackPanel();
+        footer.Children.Add(new ScrollViewer { Content = _status, MaxHeight = 64, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         actions.Children.Add(Button("关闭", Close));
         _save = Button("保存拼图", Save); _copy = Button("复制拼图", Copy);
         _edit = Button("完成并编辑", () => { _renderTimer.Stop(); Render(); if (_composed == null) return; ResultImage = _composed; Close(); EditRequested?.Invoke(this, EventArgs.Empty); });
         if (TryFindResource("PrimaryButton") is Style style) _copy.Style = style;
         actions.Children.Add(_save); actions.Children.Add(_edit); actions.Children.Add(_copy); footer.Children.Add(actions);
-        Grid.SetRow(footer, 3); root.Children.Add(footer); Content = new Border { Background = Brushes.White, Child = root };
+        Grid.SetRow(footer, 3); root.Children.Add(footer); Content = root;
         _layout.SelectionChanged += (_, _) => ScheduleRender(); _width.SelectionChanged += (_, _) => ScheduleRender();
         _subtitle.ValueChanged += (_, _) => { SyncCrop(); ScheduleRender(); }; _stagger.ValueChanged += (_, _) => ScheduleRender();
         _frames.CollectionChanged += (_, _) => { NumberFrames(); SyncCrop(); ScheduleRender(); };
         NumberFrames();
         _renderTimer.Tick += (_, _) => { _renderTimer.Stop(); Render(); };
         _previewHost.SizeChanged += (_, _) => ResizePreview();
+        SourceInitialized += (_, _) => ConstrainToWorkArea();
         Loaded += (_, _) =>
         {
-            var area = System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;
-            var dpi = VisualTreeHelper.GetDpi(this);
-            MinWidth = Math.Min(MinWidth, area.Width / dpi.DpiScaleX - 36); MinHeight = Math.Min(MinHeight, area.Height / dpi.DpiScaleY - 36);
-            Width = Math.Min(Width, area.Width / dpi.DpiScaleX - 36); Height = Math.Min(Height, area.Height / dpi.DpiScaleY - 36);
+            UpdateLayout();
             if (_frames.Count > 0) _list.SelectedIndex = 0; SyncCrop(); Render();
+            UpdateLayout(); ResizePreview(); UpdateLayout();
         };
         Closed += (_, _) => { _closed = true; _renderTimer.Stop(); };
     }
 
+    private void ConstrainToWorkArea()
+    {
+        var area = System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle).WorkingArea;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var availableWidth = Math.Max(320, area.Width / dpi.DpiScaleX - 36);
+        var availableHeight = Math.Max(300, area.Height / dpi.DpiScaleY - 36);
+        MinWidth = Math.Min(MinWidth, availableWidth); MinHeight = Math.Min(MinHeight, availableHeight);
+        Width = Math.Min(Width, availableWidth); Height = Math.Min(Height, availableHeight);
+    }
+
     private static Button Button(string title, Action action)
     {
-        var button = new Button { Content = title, Margin = new Thickness(0, 0, 7, 0), Padding = new Thickness(10, 7, 10, 7) };
+        var button = new Button { Margin = new Thickness(0, 0, 7, 0), Padding = new Thickness(10, 8, 10, 8), FontSize = 13 };
+        StudioUi.Label(button, StudioUi.ActionIcon(title), title);
         button.Click += (_, _) => action(); return button;
     }
     internal async Task AddCaptureAsync()
@@ -230,7 +260,7 @@ internal sealed class CollageWindow : Window
             _cropEditor.IsEnabled = _cropTop.IsEnabled = _cropBottom.IsEnabled = enabled;
             var crop = frame?.Crop ?? new SubtitleCrop(1 - _subtitle.Value / 100, 1);
             _cropEditor.Crop = crop; _cropTop.Value = crop.Top * 100; _cropBottom.Value = crop.Bottom * 100;
-            _cropHint.Text = frame == null ? "选择一张图片，调整要保留的台词。" : index == 0 ? "第 1 张保留完整画面。拖动缩略图可更换封面。" : _layout.SelectedIndex != 0 ? "切换到台词拼图后，可逐张调整裁切范围。" : $"第 {index + 1} 张 · 保留 {crop.Top:P0}–{crop.Bottom:P0}，拖动绿色边界调整。";
+            _cropHint.Text = frame == null ? "选择一张图片，调整要保留的台词。" : index == 0 ? "首张完整保留，拖动缩略图更换封面。" : _layout.SelectedIndex != 0 ? "切换到台词拼图后，可逐张调整裁切范围。" : $"第 {index + 1} 张 · 保留 {crop.Top:P0}–{crop.Bottom:P0}，拖动紫蓝色边界调整。";
         }
         finally { _syncCrop = false; }
     }

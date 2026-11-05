@@ -31,11 +31,14 @@ internal sealed class VideoRecordingWindow : Window
 
     internal VideoRecordingWindow(Drawing.Rectangle region, string dataDirectory)
     {
+        Style = (Style)Application.Current.FindResource(typeof(Window));
         _region = region; _dataDirectory = dataDirectory;
         Title = "拾屏 精简版 · 录制视频"; Icon = AppIcon.WindowImage;
-        Width = 440; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        Width = 520; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterScreen; Topmost = true;
-        Background = Brushes.White;
+        Background = StudioUi.Brush("Canvas");
+        StudioUi.Label(_primary, "play", "开始录制");
+        _status.Foreground = StudioUi.Brush("Muted"); _status.FontSize = 13;
         var size = VideoRecorder.OutputSize(region.Size);
         _status.Text = $"已选 {region.Width} × {region.Height} 像素\n生成 {size.Width} × {size.Height} · 30 帧/秒 · 包含鼠标\n倒计时 3 秒后开始，最长 5 分钟。";
         _content.Children.Add(_heading); _content.Children.Add(_status);
@@ -45,9 +48,10 @@ internal sealed class VideoRecordingWindow : Window
         if (TryFindResource("PrimaryButton") is Style primaryStyle) _primary.Style = primaryStyle;
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Content = "取消", Margin = new Thickness(0, 0, 8, 0) };
+        StudioUi.Label(cancel, "close", "取消");
         cancel.Click += (_, _) => Close();
         buttons.Children.Add(cancel); buttons.Children.Add(_primary); _content.Children.Add(buttons);
-        Content = new Border { Background = Brushes.White, Padding = new Thickness(24), Child = _content };
+        var surface = StudioUi.Panel(_content, new Thickness(24)); surface.Margin = new Thickness(16); Content = surface;
         _primary.Click += async (_, _) =>
         {
             if (_running) { _primary.IsEnabled = false; _stop?.Cancel(); return; }
@@ -74,7 +78,7 @@ internal sealed class VideoRecordingWindow : Window
             return;
         }
         _stop?.Dispose(); _stop = new CancellationTokenSource();
-        _running = true; _discard = false; _primary.Content = "取消倒计时";
+        _running = true; _discard = false; StudioUi.Label(_primary, StudioUi.ActionIcon("取消倒计时"), "取消倒计时");
         _systemSound.IsEnabled = false; _microphone.IsEnabled = false;
         try
         {
@@ -85,7 +89,7 @@ internal sealed class VideoRecordingWindow : Window
                 await Task.Delay(1000, _stop.Token);
             }
             _recording = true; _heading.Text = "● 正在录制";
-            _primary.Content = "停止并复制";
+            StudioUi.Label(_primary, StudioUi.ActionIcon("停止并复制"), "停止并复制");
             var progress = new Progress<VideoRecordingProgress>(value =>
             {
                 if (_recording) _status.Text = $"{value.Elapsed:mm\\:ss} / 05:00  ·  {value.Bytes / 1048576d:F1} MB\n点击「停止并复制」结束。控制条内按 Esc 也可停止。";
@@ -107,7 +111,7 @@ internal sealed class VideoRecordingWindow : Window
         finally
         {
             _recording = false; _running = false;
-            _primary.IsEnabled = true; _primary.Content = "开始录制";
+            _primary.IsEnabled = true; StudioUi.Label(_primary, StudioUi.ActionIcon("开始录制"), "开始录制");
             _systemSound.IsEnabled = WasapiAudio.SystemSoundAvailable; _microphone.IsEnabled = WasapiAudio.MicrophoneAvailable;
             if (_closeWhenStopped) Close();
         }
@@ -134,16 +138,18 @@ internal sealed class VideoRecordingWindow : Window
                 catch (Exception ex) { _status.Text = "拖拽未完成：" + ex.Message; }
             };
             _content.Children.Add(thumbnail);
-            _content.Children.Add(new TextBlock { Text = "首帧预览 · 拖入聊天窗口可发送视频文件", Foreground = Brushes.Gray, FontSize = 11, Margin = new Thickness(0, 7, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
+            _content.Children.Add(new TextBlock { Text = "首帧预览 · 拖入聊天窗口可发送视频文件", Foreground = StudioUi.Brush("Muted"), FontSize = 13, Margin = new Thickness(0, 7, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
         }
         var actions = new WrapPanel();
         void Add(string title, Action action)
         {
             var button = new Button { Content = title, Margin = new Thickness(0, 0, 7, 8), Padding = new Thickness(11, 7, 11, 7) };
+            StudioUi.Label(button, StudioUi.ActionIcon(title), title);
             button.Click += (_, _) => { try { action(); } catch (Exception ex) { _status.Text = ex.Message; } };
             actions.Children.Add(button);
         }
         var copy = new Button { Content = "复制视频", Margin = new Thickness(0, 0, 7, 8) };
+        StudioUi.Label(copy, "copy", "复制视频"); copy.Style = (Style)FindResource("PrimaryButton");
         copy.Click += async (_, _) => { copy.IsEnabled = false; try { await CopyResultAsync(); } finally { copy.IsEnabled = true; } };
         actions.Children.Add(copy);
         Add("播放视频", () => Process.Start(new ProcessStartInfo(result.Path) { UseShellExecute = true }));

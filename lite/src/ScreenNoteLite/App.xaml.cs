@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -8,6 +8,8 @@ namespace ScreenNote;
 
 public partial class App : Application
 {
+    public App() => StudioUi.EnableCompactSizing();
+
     private Mutex? _mutex;
     private bool _ownsMutex;
     public static bool IsTestMode { get; private set; }
@@ -44,10 +46,12 @@ public partial class App : Application
         else InitializeStorageLocation();
         var main = new MainWindow(e.Args);
         MainWindow = main;
-        main.Show();
         var recoveryArg = Array.IndexOf(e.Args, "--recover-edit");
+        if (e.Args.Contains("--tray") && !IsTestMode && recoveryArg < 0)
+            new System.Windows.Interop.WindowInteropHelper(main).EnsureHandle();
+        else
+            main.Show();
         if (recoveryArg >= 0 && recoveryArg + 1 < e.Args.Length) main.RestoreUpgradeBackup(e.Args[recoveryArg + 1]);
-        if (e.Args.Contains("--tray") && !IsTestMode) main.Hide();
     }
 
     private static void InitializeStorageLocation()

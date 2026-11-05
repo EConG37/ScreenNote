@@ -1,70 +1,44 @@
-# 拾屏 精简版 ScreenNote Lite
+# 拾屏精简版 ScreenNote Lite 1.2.7
 
-一个只做截图与标注的 Windows 桌面工具：完整版去掉 OCR 和翻译后的独立精简版，可与完整版同时安装。
+Windows 区域截图、标注、历史、多图拼贴、滚动长图、GIF 和带声音的视频录制工具。不包含完整版的 OCR 与离线翻译。
 
-## 保留的功能
+## 安装与体积
 
-- 区域截图、窗口悬停识别、多屏与高 DPI、滚动长截图
-- 截图浮动栏：取消 / 编辑 / 下载 / 复制（Ctrl+S 直接下载 PNG）
-- 标注编辑器：选择、画笔、箭头、直线、矩形、椭圆、文字、荧光笔、高亮选框、序号、马赛克、遮挡，撤销/重做，颜色/线宽/字号
-- 发送给 AI：原生剪贴板 + 自动粘贴到 DeepSeek / ChatGPT / 豆包，也支持历史多图批量发送
-- 截图历史：自动保存、缩略图、重新编辑、批量导出、删除、资料文件夹迁移
-- GIF 录制、视频录制（MP4，可带系统声音/麦克风）、多图拼贴、放大查看、导入图片、托盘与全局快捷键、开机自启
+- 轻量安装包：ScreenNoteLite-1.2.7-Light-Setup-x64.exe，约 2.22 MiB，使用电脑已有的 x64 .NET 10 Desktop Runtime。
+- 自带环境安装包：ScreenNoteLite-1.2.7-Setup-x64.exe，约 47 MB，无需另装 .NET。
+- 两种构建功能相同，输出到 releases/1.2.7，并提供对应的免安装 ZIP 和 SHA-256 校验文件。
 
-## 和完整版的区别
+轻量版共享系统运行环境；首次安装该环境仍需单独磁盘空间。安装程序会检测运行环境。从自带环境版升级后，会在安装成功时清理原有运行库，保留资料。
 
-| 项目 | 完整版 | 精简版 |
-| --- | --- | --- |
-| 图片 OCR / 文字工作台 | 有 | 无 |
-| 中英离线翻译 | 有 | 无 |
-| 截图、标注、发送给 AI、历史、GIF、视频、拼图、滚动截图 | 有 | 有 |
-| 安装目录 | `%LOCALAPPDATA%\Programs\ScreenNote` | `%LOCALAPPDATA%\Programs\ScreenNoteLite` |
-| 设置目录 | `%LOCALAPPDATA%\ScreenNote` | `%LOCALAPPDATA%\ScreenNoteLite` |
-| 自启注册表值 | `ScreenNote` | `ScreenNoteLite` |
-| 默认快捷键 | Alt+A | Alt+A（两个版本同时运行时会争用，建议改其中一个） |
+若从开发目录启动安装程序提示临时目录拒绝访问，请复制到普通下载目录运行。无需关闭安全软件或修改整个磁盘的权限。
 
-精简版打开完整版创建的历史记录时，会原样保留记录中的 OCR 文字字段，不会在重新保存时抹掉。
+## 录制与编辑
 
-## 构建
+点击录制，选择 GIF 或视频并框选区域，再点击开始录制。支持暂停、继续、停止保存和放弃。编辑窗口自动播放 GIF 和视频，支持播放/暂停、拖动进度、选段循环与预览静音。调整起止时间后会停在相应画面，裁剪框覆盖在动态预览上。支持画面裁剪、时间裁剪、GIF/MP4 导出；MP4 保留原有声音，无声录制继续保持无声。
 
-在 `lite` 目录执行：
+GIF 默认 15 帧/秒，可选择 10 MB 目标。通过降低尺寸和颜色数压缩；保持完整时长仍无法达到目标时会明确报错，可以缩短时长或选择不压缩。
+
+## 资料
+
+- 默认安装目录：%LOCALAPPDATA%\Programs\ScreenNoteLite。
+- 设置：%LOCALAPPDATA%\ScreenNoteLite\settings.json。
+- 默认资料：程序目录下的 data/history、data/recordings，可在设置中迁移。
+- 卸载保留资料；手动删除整个程序文件夹会删除其中的资料，请先迁移重要内容。
+- 支持 Windows 10 2004 及以上 x64 系统，与已归档完整版使用独立设置和自启项。同时运行需使用不同快捷键。
+
+## 构建与验证
+
+需要 .NET 10 SDK，在 lite 目录执行：
 
 ```powershell
-# 框架依赖发布（需要本机已安装 .NET 10 Desktop Runtime）
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Test
-
-# 轻量 ZIP（依赖 .NET 10 Desktop Runtime，约 0.3 MB）
-powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Package
-
-# 自包含安装包（自带 .NET 运行时）
+powershell -ExecutionPolicy Bypass -File scripts\validate.ps1
 powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
-
-# 自包含便携 ZIP（需先执行 build-installer.ps1 生成 payload）
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -FrameworkDependent
 powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1 -FrameworkDependent
 ```
 
-产物默认写到仓库级 `output\lite\`（本目录独立使用时会写到本目录的 `output\`）：
+自带环境包移除设计器、调试工具和多余语言资源，不启用 WPF 不支持的 IL 裁剪。验证覆盖基础自检、GIF/视频、暂停、录制界面及媒体往返导出，均针对精简版源码。界面验证会短暂打开测试窗口，使用 -SkipUi 可跳过。
 
-- `ScreenNoteLite-1.1.0-Setup-x64.exe`
-- `ScreenNoteLite-1.1.0-portable-x64.zip`
-- `ScreenNoteLite-1.1.0-lite-x64.zip`
-- `ScreenNoteLite\`（框架依赖发布目录）
-
-## 体积
-
-| 产物 | 完整版 | 精简版 |
-| --- | --- | --- |
-| 安装包（自包含，含 .NET） | 264 MB | **50.6 MB** |
-| 便携 ZIP（自包含，含 .NET） | 321 MB | **65.6 MB** |
-| 轻量 ZIP（依赖已安装的 .NET） | 276 MB（0.7.x） | **0.3 MB** |
-| 发布目录（框架依赖） | 533 MB | **0.7 MB** |
-
-完整版的体积主要来自 `ocr-runtime`（350 MB）和 `translation-models`（162 MB），精简版两者都不包含；剩余部分是 .NET 自包含运行时。
-
-> 如果安装包放在受限目录（例如被安全策略禁止删除子项的文件夹）运行后立刻退出，请把安装包复制到普通文件夹（如下载目录）再运行。
-
-## 说明
-
-- 发送到 AI 的行为边界见 [docs/ai-bridge.md](docs/ai-bridge.md)。
-- 本目录是独立 fork；完整版的功能改动需要按需同步到这里。
-- 精简版不含 Python 运行时、OCR 模型与翻译模型。
+完整操作见根目录 README；AI 网页复制粘贴见 docs/ai-bridge.md。

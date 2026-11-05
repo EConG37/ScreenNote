@@ -30,8 +30,8 @@ DisableReadyPage=yes
 WizardStyle=modern
 SetupIconFile={#PayloadDir}\assets\app.ico
 UninstallDisplayIcon={app}\ScreenNoteLite.exe
-OutputBaseFilename=ScreenNoteLite-{#AppVersion}-Setup-x64
-Compression=lzma2/normal
+OutputBaseFilename={#OutputName}
+Compression=lzma2/max
 SolidCompression=yes
 ShowLanguageDialog=no
 VersionInfoProductName=拾屏 精简版
@@ -57,6 +57,55 @@ Name: "{autodesktop}\拾屏 精简版"; Filename: "{app}\ScreenNoteLite.exe"; Wo
 Filename: "{app}\ScreenNoteLite.exe"; Description: "启动拾屏 精简版"; Flags: nowait postinstall skipifsilent
 
 [Code]
+#include RuntimeCleanup
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    RemoveObsoleteRuntime();
+end;
+
+#ifdef LightBuild
+function HasDesktopRuntimeAt(Root: String): Boolean;
+var
+  Item: TFindRec;
+  Shared: String;
+begin
+  Result := False;
+  if Root = '' then Exit;
+  Shared := AddBackslash(Root) + 'shared\Microsoft.WindowsDesktop.App\';
+  if FindFirst(Shared + '10.*', Item) then
+  begin
+    try
+      repeat
+        if FileExists(Shared + Item.Name + '\PresentationFramework.dll') then
+          Result := True;
+      until not FindNext(Item);
+    finally
+      FindClose(Item);
+    end;
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  Versions: TArrayOfString;
+  Index: Integer;
+begin
+  Result := False;
+  if RegGetValueNames(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Versions) then
+    for Index := 0 to GetArrayLength(Versions) - 1 do
+      if Pos('10.', Versions[Index]) = 1 then
+        Result := True;
+  { SDK/ZIP installations can supply a valid runtime without registry entries. }
+  Result := Result or HasDesktopRuntimeAt(ExpandConstant('{commonpf64}\dotnet'))
+    or HasDesktopRuntimeAt(GetEnv('DOTNET_ROOT_X64'))
+    or HasDesktopRuntimeAt(GetEnv('DOTNET_ROOT'));
+  if not Result then
+    SuppressibleMsgBox('轻量版需要 .NET 10 桌面运行环境。请先安装该环境，或改用自带运行环境的拾屏安装包。', mbError, MB_OK, IDOK);
+end;
+#endif
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   StartupCommand: String;

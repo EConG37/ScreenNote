@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<HistoryEntry> _historyEntries;
     private readonly DispatcherTimer _autoSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
     private HistoryEntry? _currentHistory;
+    private bool _historyLoaded;
     private bool _historyDirty, _switchingDocument, _syncingTarget, _changingStorage;
     private string _startupHotkeyMessage = "";
     private int _documentGeneration;
@@ -44,7 +45,8 @@ public partial class MainWindow : Window
     {
         _args = args; _settings = SettingsService.Load();
         _history = new HistoryService(Path.Combine(App.DataDirectory, "history"));
-        _historyEntries = new ObservableCollection<HistoryEntry>(_history.LoadEntries());
+        _historyLoaded = !args.Contains("--tray");
+        _historyEntries = new ObservableCollection<HistoryEntry>(_historyLoaded ? _history.LoadEntries() : Array.Empty<HistoryEntry>());
         InitializeComponent();
         Icon = AppIcon.WindowImage;
         ColorChoice.SelectedIndex = Math.Max(0, ColorChoice.Items.Cast<ComboBoxItem>().ToList().FindIndex(item => Equals(item.Tag, _settings.Color)));
@@ -59,17 +61,6 @@ public partial class MainWindow : Window
             SyncStyleChoices();
         };
         ImageScroll.SizeChanged += (_, _) => UpdateZoom();
-        ToolPanel.SizeChanged += (_, e) =>
-        {
-            var buttons = ToolPanel.Children.OfType<Button>().ToArray();
-            if (buttons.Length == 0) return;
-            var width = Math.Clamp(Math.Floor(e.NewSize.Width / buttons.Length) - 4, 34, 54);
-            foreach (var button in buttons)
-            {
-                if (button.Width != width) button.Width = width;
-                button.FontSize = width < 48 ? 10 : 11;
-            }
-        };
         HistoryList.ItemsSource = _historyEntries;
         _autoSaveTimer.Tick += (_, _) => SaveCurrentHistory();
         SourceInitialized += (_, _) => InitializeDesktop();
@@ -152,6 +143,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        EnsureHistoryLoaded();
         if (!App.IsTestMode)
         {
             var messages = new[] { App.StorageStartupMessage, _startupHotkeyMessage }.Where(message => message.Length > 0);
@@ -272,7 +264,10 @@ public partial class MainWindow : Window
         if (outcome is null) { if (wasVisible) ShowWorkspace(); return; }
         var editor = new RecordEditorWindow(outcome.Path);
         if (editor.ShowDialog() == true && editor.ResultPath is { Length: > 0 } exported)
-            SetStatus("已导出：" + Path.GetFileName(exported));
+        {
+            RecordEditorWindow.TryCopyFile(exported);
+            SetStatus("已复制 " + Path.GetFileName(exported) + "，可直接粘贴");
+        }
         else
             SetStatus("录制已保留：" + Path.GetFileName(outcome.Path));
         if (wasVisible) ShowWorkspace();
@@ -351,12 +346,12 @@ public partial class MainWindow : Window
         foreach (var button in ToolPanel.Children.OfType<Button>())
         {
             var selected = Equals(button.Tag, tool.ToString());
-            button.Background = new SolidColorBrush(selected ? Color.FromRgb(32, 35, 31) : Colors.Transparent);
-            button.Foreground = selected ? Brushes.White : (Brush)FindResource("Ink");
-            button.BorderBrush = Brushes.Transparent;
+            button.Background = selected ? (Brush)FindResource("AccentSoft") : Brushes.Transparent;
+            button.Foreground = (Brush)FindResource(selected ? "Accent" : "Ink");
+            button.BorderBrush = selected ? new SolidColorBrush(Color.FromRgb(186, 195, 249)) : Brushes.Transparent;
         }
-        PrimaryHighlightButton.Background = tool == AnnotationTool.HighlightBox ? new SolidColorBrush(Color.FromRgb(235, 242, 255)) : Brushes.Transparent;
-        PrimaryHighlightButton.BorderBrush = tool == AnnotationTool.HighlightBox ? new SolidColorBrush(Color.FromRgb(183, 206, 249)) : Brushes.Transparent;
+        PrimaryHighlightButton.Background = tool == AnnotationTool.HighlightBox ? (Brush)FindResource("AccentSoft") : Brushes.Transparent;
+        PrimaryHighlightButton.BorderBrush = tool == AnnotationTool.HighlightBox ? new SolidColorBrush(Color.FromRgb(186, 195, 249)) : Brushes.Transparent;
     }
     private void Style_Changed(object sender, SelectionChangedEventArgs e)
     {

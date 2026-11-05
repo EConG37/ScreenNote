@@ -8,15 +8,12 @@ namespace ScreenNote;
 /// Video input is top-down BGRA (WPF frames); audio input is interleaved stereo PCM16.</summary>
 internal sealed class Mp4Writer : IDisposable
 {
-    private static readonly object _mfSync = new();
-    private static int _mfUsers;
-
     private readonly object _sync = new();
     private readonly int _width, _height, _stride;
     private Mf.IMFSinkWriter? _writer;
     private uint _videoStream;
     private uint _audioStream;
-    private bool _hasAudio, _finalized;
+    private bool _hasAudio, _finalized, _disposed;
     private byte[]? _framePixels;
 
     internal Mp4Writer(string path, int width, int height, int frameRate, int audioSampleRate = 0, int audioBytesPerSecond = 24000)
@@ -24,7 +21,7 @@ internal sealed class Mp4Writer : IDisposable
         if (width < 2 || height < 2 || (width & 1) != 0 || (height & 1) != 0)
             throw new ArgumentOutOfRangeException(nameof(width), "视频宽高需为不小于 2 的偶数。");
         _width = width; _height = height; _stride = width * 4;
-        AcquireMf();
+        Mf.AcquireMf();
         Mf.IMFAttributes? attributes = null;
         Mf.IMFMediaType? videoOutput = null, videoInput = null, audioOutput = null, audioInput = null;
         try
@@ -89,7 +86,7 @@ internal sealed class Mp4Writer : IDisposable
         {
             ReleaseCom(videoOutput); ReleaseCom(videoInput); ReleaseCom(audioOutput); ReleaseCom(audioInput); ReleaseCom(attributes);
             ReleaseCom(_writer); _writer = null;
-            ReleaseMf();
+            Mf.ReleaseMf();
             throw;
         }
     }
@@ -156,8 +153,10 @@ internal sealed class Mp4Writer : IDisposable
     {
         lock (_sync)
         {
+            if (_disposed) return;
+            _disposed = true;
             ReleaseCom(_writer); _writer = null;
-            ReleaseMf();
+            Mf.ReleaseMf();
         }
         GC.SuppressFinalize(this);
     }
@@ -169,14 +168,6 @@ internal sealed class Mp4Writer : IDisposable
     private static void SetFormat(Mf.IMFMediaType type, Guid key, Guid value) => Mf.Check(type.SetGUID(ref key, ref value), "SetGUID");
     private static void ReleaseCom(object? com)
     {
-        if (com != null && Marshal.IsComObject(com)) Marshal.FinalReleaseComObject(com);
-    }
-    private static void AcquireMf()
-    {
-        lock (_mfSync) { if (_mfUsers++ == 0) Mf.Check(Mf.MFStartup(Mf.Version, 0), "MFStartup"); }
-    }
-    private static void ReleaseMf()
-    {
-        lock (_mfSync) { if (_mfUsers > 0 && --_mfUsers == 0) Mf.MFShutdown(); }
+        Mf.ReleaseCom(com);
     }
 }

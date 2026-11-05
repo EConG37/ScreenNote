@@ -1,51 +1,58 @@
 <Window x:Class="ScreenNote.RecordingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="拾屏 · 录制中" Width="470" SizeToContent="Height" ResizeMode="NoResize"
+        xmlns:local="clr-namespace:ScreenNote"
+        Style="{StaticResource {x:Type Window}}"
+        Title="拾屏 · 录制" Width="410" SizeToContent="Height" ResizeMode="NoResize"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        WindowStartupLocation="CenterScreen" ShowInTaskbar="False" Topmost="True"
+        WindowStartupLocation="Manual" ShowInTaskbar="False" Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown">
 
-  <Border Margin="20" CornerRadius="16" Background="White" BorderBrush="#E1E4DD" BorderThickness="1"
+  <Border Margin="10" CornerRadius="16" Background="{StaticResource Canvas}" BorderBrush="{StaticResource Line}" BorderThickness="1"
           MouseLeftButtonDown="Surface_MouseLeftButtonDown">
     <Border.Effect>
-      <DropShadowEffect BlurRadius="28" ShadowDepth="7" Direction="270" Opacity="0.16" Color="#20231F" />
+      <DropShadowEffect BlurRadius="18" ShadowDepth="5" Direction="270" Opacity="0.14" Color="#65749A" />
     </Border.Effect>
 
-    <StackPanel Margin="26,22,26,20">
+    <StackPanel Margin="14,11,14,12">
       <Grid>
         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <StackPanel>
-          <StackPanel Orientation="Horizontal">
-            <Ellipse x:Name="LiveDot" Width="8" Height="8" Fill="#C4453A" Margin="0,0,8,0"
-                     VerticalAlignment="Center" Visibility="Collapsed" />
-            <TextBlock x:Name="HeadingText" Text="3 秒后开始录制" FontSize="15" FontWeight="SemiBold" />
-          </StackPanel>
-          <TextBlock x:Name="RegionText" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,7,0,0" />
+        <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="#C4453A" Margin="0,0,7,0"
+                 VerticalAlignment="Center" Visibility="Collapsed" />
+        <TextBlock x:Name="HeadingText" Grid.Column="1" Text="准备录制" FontSize="14" FontWeight="SemiBold"
+                   VerticalAlignment="Center" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="ClockText" Text="0:00" FontSize="14" Foreground="{StaticResource Muted}"
+                     FontFamily="Consolas" Margin="0,0,4,0" VerticalAlignment="Center" />
+          <Button Width="28" Height="28" Padding="0" FontSize="13" Background="Transparent"
+                  BorderThickness="0" Foreground="{StaticResource Muted}" ToolTip="放弃本次录制（Esc）"
+                  Click="Cancel_Click" AutomationProperties.Name="放弃本次录制"><local:ToolGlyph Kind="close" Width="16" Height="16" Foreground="{StaticResource Muted}"/></Button>
         </StackPanel>
-        <Button Grid.Column="1" Content="✕" Width="30" Height="30" Padding="0" FontSize="12"
-                Background="Transparent" BorderThickness="0" Foreground="{StaticResource Muted}"
-                ToolTip="取消（Esc）" Click="Cancel_Click" VerticalAlignment="Top" />
       </Grid>
 
-      <TextBlock x:Name="BigText" Text="3" FontSize="46" FontWeight="SemiBold" Margin="0,16,0,0" />
+      <TextBlock x:Name="RegionText" Text="" Foreground="{StaticResource Muted}" FontSize="13"
+                 Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
 
       <ProgressBar x:Name="Progress" Height="3" Margin="0,10,0,0" Minimum="0" Maximum="1" Value="0"
-                   Foreground="#20231F" Background="#E9ECE4" BorderThickness="0" />
+                   Foreground="{StaticResource Accent}" Background="{StaticResource AccentSoft}" BorderThickness="0" />
 
-      <TextBlock x:Name="StatusText" Text="请切换到要演示的窗口。" TextWrapping="Wrap" LineHeight="19"
-                 FontSize="11" Foreground="{StaticResource Muted}" Margin="0,12,0,0" />
-
-      <DockPanel Margin="0,18,0,0" LastChildFill="False">
+      <DockPanel Margin="0,11,0,0" LastChildFill="False">
         <Button DockPanel.Dock="Right" x:Name="PrimaryButton" Style="{StaticResource PrimaryButton}"
-                Content="停止并保存" Click="Primary_Click" Padding="20,9" />
-        <Button x:Name="CancelButton" Content="取消" Click="Cancel_Click" Margin="0,0,8,0" Padding="18,9" />
-        <TextBlock x:Name="FootNote" Text="控制条已从画面中排除" FontSize="10" Foreground="{StaticResource Muted}"
-                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                Content="停止并保存" Click="Primary_Click" Padding="12,8" FontSize="13" IsEnabled="False" />
+        <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Content="开始录制" Click="Start_Click" Padding="12,8" FontSize="13" />
+        <Button x:Name="PauseButton" Content="暂停" Click="Pause_Click" Padding="10,8" FontSize="13"
+                Margin="8,0,0,0" Visibility="Collapsed" />
+        <Button x:Name="CancelButton" Content="放弃" Click="Cancel_Click" Padding="10,8" FontSize="13"
+                Margin="8,0,0,0" Background="Transparent" BorderBrush="Transparent"
+                Foreground="{StaticResource Muted}" />
       </DockPanel>
+
+      <TextBlock x:Name="FootNote" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,7,0,0"
+                 TextWrapping="Wrap" Visibility="Collapsed" />
     </StackPanel>
   </Border>
 </Window>

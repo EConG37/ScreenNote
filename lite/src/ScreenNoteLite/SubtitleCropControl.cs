@@ -44,7 +44,7 @@ internal sealed class SubtitleCropControl : FrameworkElement
     }
     protected override void OnRender(DrawingContext dc)
     {
-        dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(237, 239, 235)), null, new Rect(RenderSize));
+        dc.DrawRoundedRectangle(StudioUi.Brush("Canvas"), null, new Rect(RenderSize), 12, 12);
         if (_source == null) return;
         var factor = Math.Min(Math.Max(1, ActualWidth - 12) / _source.PixelWidth, Math.Max(1, ActualHeight - 12) / _source.PixelHeight);
         var width = _source.PixelWidth * factor; var height = _source.PixelHeight * factor;
@@ -55,7 +55,7 @@ internal sealed class SubtitleCropControl : FrameworkElement
         var shade = new SolidColorBrush(Color.FromArgb(155, 0, 0, 0));
         dc.DrawRectangle(shade, null, new Rect(_imageRect.Left, _imageRect.Top, width, Math.Max(0, band.Top - _imageRect.Top)));
         dc.DrawRectangle(shade, null, new Rect(_imageRect.Left, band.Bottom, width, Math.Max(0, _imageRect.Bottom - band.Bottom)));
-        dc.DrawRectangle(null, new Pen(Brushes.MediumSeaGreen, 2), band);
-        foreach (var y in new[] { band.Top, band.Bottom }) dc.DrawRoundedRectangle(Brushes.White, new Pen(Brushes.SeaGreen, 1), new Rect(band.X + width / 2 - 17, y - 4, 34, 8), 3, 3);
+        dc.DrawRectangle(null, new Pen(StudioUi.Brush("Accent"), 2), band);
+        foreach (var y in new[] { band.Top, band.Bottom }) dc.DrawRoundedRectangle(Brushes.White, new Pen(StudioUi.Brush("Accent"), 1), new Rect(band.X + width / 2 - 17, y - 4, 34, 8), 4, 4);
     }
 }

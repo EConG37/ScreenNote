@@ -24,15 +24,15 @@ public sealed partial class CaptureWindow : Window
     private readonly Drawing.Rectangle _bounds;
     private readonly Canvas _canvas = new();
     private readonly Border _shade = new() { Background = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), IsHitTestVisible = false };
-    private readonly Shapes.Rectangle _selection = new() { Stroke = new SolidColorBrush(Color.FromRgb(37, 99, 235)), StrokeThickness = 2, Fill = Brushes.Transparent };
-    private readonly TextBlock _label = new() { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(220, 32, 34, 38)), Padding = new Thickness(10, 6, 10, 6) };
-    private readonly Border _actions = new() { Background = Brushes.White, BorderBrush = new SolidColorBrush(Color.FromRgb(221, 223, 227)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(6), Visibility = Visibility.Collapsed };
+    private readonly Shapes.Rectangle _selection = new() { Stroke = new SolidColorBrush(Color.FromRgb(89, 101, 242)), StrokeThickness = 2, Fill = Brushes.Transparent };
+    private readonly TextBlock _label = new() { Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(225, 41, 51, 78)), Padding = new Thickness(12, 7, 12, 7), FontSize = 13 };
+    private readonly Border _actions = new() { Background = new SolidColorBrush(Color.FromArgb(248, 249, 251, 255)), BorderBrush = new SolidColorBrush(Color.FromRgb(218, 225, 241)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(16), Padding = new Thickness(8), Visibility = Visibility.Collapsed };
     private readonly List<Shapes.Rectangle> _handles = [];
     private readonly AnnotationSurface _focusSurface = new() { Tool = AnnotationTool.HighlightBox, InkColor = Color.FromRgb(75, 125, 238) };
     private readonly Viewbox _focusView = new() { Stretch = Stretch.Fill, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     private readonly StackPanel _actionPanel = new() { Orientation = Orientation.Horizontal };
     private readonly StackPanel _completionPanel = new() { Orientation = Orientation.Horizontal };
-    private readonly Border _actionDivider = new() { Width = 1, Height = 20, Background = new SolidColorBrush(Color.FromRgb(228, 231, 225)), Margin = new Thickness(7, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _actionDivider = new() { Width = 1, Height = 24, Background = new SolidColorBrush(Color.FromRgb(218, 225, 241)), Margin = new Thickness(9, 0, 9, 0), VerticalAlignment = VerticalAlignment.Center };
     private Button _cancelButton = null!;
     private bool _selectionOnly, _toolLabelsVisible = true;
     private readonly Dictionary<CaptureAction, Button> _actionButtons = new();
@@ -97,15 +97,14 @@ public sealed partial class CaptureWindow : Window
         _canvas.Children.Add(_label);
         var actionPanel = _actionPanel;
         var copy = CreateAction("复制", "copy", "Enter 或双击选区：复制", Colors.White);
-        copy.Background = new SolidColorBrush(Color.FromRgb(35, 120, 75)); copy.FontWeight = FontWeights.SemiBold;
+        copy.Background = new SolidColorBrush(Color.FromRgb(89, 101, 242)); copy.FontWeight = FontWeights.SemiBold;
         var enterHint = new Border { BorderBrush = new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), Padding = new Thickness(4, 0, 4, 1), Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
             Child = new TextBlock { Text = "↵", FontSize = 13, FontWeight = FontWeights.Normal } };
         ((StackPanel)copy.Content).Children.Add(enterHint);
-        var edit = CreateAction("编辑", "pen", "Ctrl+E：编辑", Color.FromRgb(140, 97, 22));
-        edit.Background = new SolidColorBrush(Color.FromRgb(255, 246, 220));
-        var download = CreateAction("下载", "download", "Ctrl+S：保存为 PNG 文件", Color.FromRgb(36, 84, 168));
-        download.Background = new SolidColorBrush(Color.FromRgb(232, 240, 254));
-        var cancel = _cancelButton = CreateAction("取消", "close", "Esc：取消", Color.FromRgb(181, 76, 69));
+        var edit = CreateAction("编辑", "pen", "Ctrl+E：编辑");
+        edit.Background = new SolidColorBrush(Color.FromRgb(232, 236, 255));
+        var download = CreateAction("保存", "download", "Ctrl+S：保存为 PNG 文件");
+        var cancel = _cancelButton = CreateAction("取消", "close", "Esc：取消", Color.FromRgb(101, 112, 139));
         copy.Click += (_, e) => { Complete(CaptureAction.Copy); e.Handled = true; };
         edit.Click += (_, e) => { Complete(CaptureAction.Edit); e.Handled = true; };
         download.Click += (_, e) => { DownloadSelection(); e.Handled = true; };
@@ -137,6 +136,11 @@ public sealed partial class CaptureWindow : Window
         actionLayout.Children.Add(actionPanel); actionLayout.Children.Add(_actionDivider); actionLayout.Children.Add(_completionPanel);
         _actions.Child = actionLayout; _canvas.Children.Add(_actions);
         InitializeEditTools();
+        StudioUi.MarkCaptureChrome(_actions);
+        StudioUi.MarkCaptureChrome(_editTools);
+        StudioUi.MarkCaptureChrome(_label);
+        _actions.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(57, 72, 110), BlurRadius = 22, ShadowDepth = 4, Opacity = 0.17 };
+        _editTools.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Color.FromRgb(57, 72, 110), BlurRadius = 22, ShadowDepth = 4, Opacity = 0.17 };
         Content = grid;
         SourceInitialized += (_, _) =>
         {
@@ -152,11 +156,11 @@ public sealed partial class CaptureWindow : Window
     }
     private Button CreateAction(string label, string icon, string hint, Color? color = null)
     {
-        var button = new Button { Height = 36, MinWidth = 36, Background = Brushes.White, BorderBrush = Brushes.Transparent, Foreground = new SolidColorBrush(color ?? Color.FromRgb(48, 52, 60)), Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(2, 0, 2, 0), ToolTip = hint, Cursor = Cursors.Hand, FontSize = 12 };
-        if (TryFindResource("CaptureToolbarButton") is Style style) button.Style = style;
+        var button = new Button { Height = 38, MinWidth = 38, Background = Brushes.Transparent, BorderBrush = Brushes.Transparent, Foreground = new SolidColorBrush(color ?? Color.FromRgb(41, 51, 78)), Padding = new Thickness(10, 0, 10, 0), Margin = new Thickness(2, 0, 2, 0), ToolTip = hint, Cursor = Cursors.Hand, FontSize = 13 };
+        if (TryFindResource("StudioToolButton") is Style style) button.Style = style;
         System.Windows.Controls.ToolTipService.SetInitialShowDelay(button, 250);
         var content = new StackPanel { Orientation = Orientation.Horizontal };
-        content.Children.Add(new ToolGlyph { Kind = icon, Width = 17, Height = 17, Foreground = button.Foreground, Margin = new Thickness(0, 0, 6, 0) });
+        content.Children.Add(new ToolGlyph { Kind = icon, Width = 19, Height = 19, Margin = new Thickness(0, 0, 7, 0) });
         content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
         button.Content = content;
         System.Windows.Automation.AutomationProperties.SetName(button, label);
@@ -203,9 +207,14 @@ public sealed partial class CaptureWindow : Window
         else _focusSurface.ClearSelection();
         _focusView.IsHitTestVisible = _focusMode;
         _selection.IsHitTestVisible = !_focusMode;
-        _focusButton.Background = _focusMode && tool == AnnotationTool.HighlightBox ? new SolidColorBrush(Color.FromRgb(235, 242, 255)) : Brushes.White;
+        _focusButton.Background = _focusMode && tool == AnnotationTool.HighlightBox ? new SolidColorBrush(Color.FromRgb(232, 236, 255)) : Brushes.Transparent;
         _focusButton.BorderBrush = Brushes.Transparent;
-        foreach (var entry in _editToolButtons) entry.Value.Background = tool == entry.Key ? new SolidColorBrush(Color.FromRgb(232, 240, 235)) : Brushes.White;
+        foreach (var entry in _editToolButtons)
+        {
+            entry.Value.Background = tool == entry.Key ? new SolidColorBrush(Color.FromRgb(232, 236, 255)) : Brushes.Transparent;
+            entry.Value.Foreground = new SolidColorBrush(tool == entry.Key ? Color.FromRgb(89, 101, 242) : Color.FromRgb(41, 51, 78));
+            entry.Value.BorderBrush = tool == entry.Key ? new SolidColorBrush(Color.FromRgb(186, 195, 249)) : Brushes.Transparent;
+        }
         if (_focusMode) _focusSurface.Focus(); else Focus();
         UpdateSelection();
     }
@@ -287,7 +296,7 @@ public sealed partial class CaptureWindow : Window
         _selection.Visibility = valid ? Visibility.Visible : Visibility.Collapsed; _label.Visibility = valid ? Visibility.Visible : Visibility.Collapsed;
         Canvas.SetLeft(_selection, _rect.X); Canvas.SetTop(_selection, _rect.Y); _selection.Width = _rect.Width; _selection.Height = _rect.Height;
         var px = ToPixelRect(_rect, _canvas.ActualWidth, _canvas.ActualHeight, _desktop.PixelWidth, _desktop.PixelHeight);
-        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "单击选择窗口 · 拖动自由框选" : _selectionOnly ? "Enter 加入拼图 · Esc 取消" : _focusMode ? "在选区内标注 · Ctrl+Z 撤销 · V 返回框选" : "Enter 复制  ·  Ctrl+E 编辑  ·  Ctrl+S 下载  ·  上方工具直接标注");
+        _label.Text = $"{px.Width} × {px.Height}   " + (_smartPreview ? "选择窗口 · 拖动框选" : _selectionOnly ? "Enter 确认 · Esc 取消" : _focusMode ? "标注 · Ctrl+Z 撤销 · V 框选" : "Enter 复制 · Ctrl+E 编辑 · Ctrl+S 保存");
         Canvas.SetLeft(_label, _rect.X); Canvas.SetTop(_label, Math.Max(0, _rect.Y - 38));
         var centerX = _rect.Left + _rect.Width / 2; var centerY = _rect.Top + _rect.Height / 2;
         var positions = new[] { _rect.TopLeft, new Point(centerX, _rect.Top), _rect.TopRight, new Point(_rect.Right, centerY), _rect.BottomRight, new Point(centerX, _rect.Bottom), _rect.BottomLeft, new Point(_rect.Left, centerY) };

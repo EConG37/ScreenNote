@@ -14,7 +14,7 @@ public partial class MainWindow
         var idle = !_sending && !_changingStorage && !_capturing;
         PrimarySendButton.IsEnabled = count > 0 && idle;
         PrimaryHighlightButton.IsEnabled = count == 1 && idle;
-        PrimaryContext.Text = count == 0 ? "选择一张截图，或开始新的截图" : history ? $"已选 {count} 张截图" : "当前截图";
+        PrimaryContext.Text = count == 0 ? "选择截图或开始截图" : history ? $"已选 {count} 张截图" : "当前截图";
     }
     private bool PrepareSingleImage()
     {

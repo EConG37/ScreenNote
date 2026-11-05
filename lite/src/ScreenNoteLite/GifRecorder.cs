@@ -32,18 +32,18 @@ internal static class GifRecorder
         => RecordAsync(region, RecordOptions.Gif(), dataDirectory, stop, progress);
 
     internal static Task<GifRecordingResult> RecordAsync(Drawing.Rectangle region, RecordOptions options, string dataDirectory,
-        CancellationToken stop, IProgress<GifRecordingProgress>? progress = null) => Task.Run(() =>
+        CancellationToken stop, IProgress<GifRecordingProgress>? progress = null, Func<bool>? isPaused = null) => Task.Run(() =>
     {
         var size = OutputSize(region.Size, options.MaximumEdge);
         using var capture = new RegionCapture(region, size);
         return Record(capture.NextFrame, size, dataDirectory, stop, progress,
-            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond);
+            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond, isPaused);
     });
 
     // The injectable frame source lets the complete recording path be tested without reading the desktop.
     internal static GifRecordingResult Record(Func<BitmapSource> nextFrame, Drawing.Size size, string dataDirectory,
         CancellationToken stop, IProgress<GifRecordingProgress>? progress, TimeSpan maximumDuration, long maximumBytes,
-        int framesPerSecond = FramesPerSecond)
+        int framesPerSecond = FramesPerSecond, Func<bool>? isPaused = null)
     {
         stop.ThrowIfCancellationRequested();
         var folder = Path.Combine(dataDirectory, "recordings");
@@ -59,6 +59,7 @@ internal static class GifRecorder
                 using (writer)
                 {
                     var clock = Stopwatch.StartNew();
+                    var paused = TimeSpan.Zero;
                     var capturedAt = TimeSpan.Zero;
                     var pending = nextFrame();
                     long previousTicks = 0;
@@ -67,9 +68,18 @@ internal static class GifRecorder
                     var frameInterval = TimeSpan.FromSeconds(1d / Math.Max(1, framesPerSecond));
                     while (true)
                     {
-                        var wait = frameInterval - (clock.Elapsed - capturedAt);
+                        if (isPaused?.Invoke() == true)
+                        {
+                            var held = clock.Elapsed;
+                            while (isPaused() && !stop.IsCancellationRequested) stop.WaitHandle.WaitOne(40);
+                            paused += clock.Elapsed - held;
+                            continue;
+                        }
+                        var active = clock.Elapsed - paused;
+                        var wait = frameInterval - (active - capturedAt);
                         if (wait > TimeSpan.Zero) stop.WaitHandle.WaitOne(wait);
-                        endedAt = clock.Elapsed < maximumDuration ? clock.Elapsed : maximumDuration;
+                        active = clock.Elapsed - paused;
+                        endedAt = active < maximumDuration ? active : maximumDuration;
                         var finishing = stop.IsCancellationRequested || endedAt >= maximumDuration || output.Position >= maximumBytes;
                         // Capture before encoding: slow compression reduces FPS without speeding up the animation.
                         var next = finishing ? null : nextFrame();

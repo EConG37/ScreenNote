@@ -810,6 +810,7 @@ public sealed class AnnotationSurface : FrameworkElement
     {
         var dialog = new Window
         {
+            Style = (Style)Application.Current.FindResource(typeof(Window)),
             Title = initial.Length == 0 ? "添加文字" : "编辑文字",
             Width = 460,
             Height = 290,
@@ -818,7 +819,8 @@ public sealed class AnnotationSurface : FrameworkElement
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             ResizeMode = ResizeMode.CanResize,
             ShowInTaskbar = false,
-            Background = Brushes.White
+            Background = StudioUi.Brush("Canvas"),
+            Icon = AppIcon.WindowImage
         };
         var owner = Window.GetWindow(this);
         if (owner is { IsVisible: true })
@@ -826,10 +828,12 @@ public sealed class AnnotationSurface : FrameworkElement
             dialog.Owner = owner;
             dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
         }
-        var panel = new DockPanel { Margin = new Thickness(18) };
+        var panel = new DockPanel();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Content = "取消", IsCancel = true, MinWidth = 76, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 12, 8, 0) };
         var accept = new Button { Content = "确定", MinWidth = 76, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 12, 0, 0) };
+        StudioUi.Label(cancel, "close", "取消"); StudioUi.Label(accept, "check", "确定");
+        accept.Style = (Style)Application.Current.FindResource("PrimaryButton");
         buttons.Children.Add(cancel);
         buttons.Children.Add(accept);
         DockPanel.SetDock(buttons, Dock.Bottom);
@@ -841,12 +845,13 @@ public sealed class AnnotationSurface : FrameworkElement
             AcceptsTab = true,
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new FontFamily("Microsoft YaHei UI"),
             FontSize = 16,
             Padding = new Thickness(8)
         };
         panel.Children.Add(input);
-        dialog.Content = panel;
+        var surface = StudioUi.Panel(panel, new Thickness(18)); surface.Margin = new Thickness(16);
+        dialog.Content = surface;
         accept.Click += (_, _) => dialog.DialogResult = true;
         input.PreviewKeyDown += (_, e) =>
         {

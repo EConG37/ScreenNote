@@ -26,3 +26,15 @@ __pycache__/
 
 # Local market research notes stay out of the public repository.
 /marketing-research/
+# Release artifacts are published as GitHub releases, not committed.
+/lite/releases/*/*.exe
+/lite/releases/*/*.zip
+/lite/releases/*/*.sha256
+/lite/releases/*/build-report.json
+/lite/releases/*/payload-manifest.json
+
+# Old development scratch output.
+/archive/scratch/
+
+# Local UI explorations and generated previews.
+/.oil-ui/

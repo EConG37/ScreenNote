@@ -1,17 +1,22 @@
-# 拾屏 精简版 ScreenNote Lite · 1.2.0
+# 拾屏 精简版 ScreenNote Lite · 1.2.7
 
 Windows 桌面截图与录制工具：区域截图、标注、滚动长图、多图拼贴，以及带裁剪编辑的 GIF 与视频录制。截图后直接复制，需要时进入编辑；多张历史截图可以一起带到 DeepSeek、ChatGPT 或豆包网页草稿，也可以导出后拖入其他软件，无需配置模型 API、浏览器扩展或配对。
 
-精简版去掉了完整版的图片 OCR 与中英离线翻译（这两项占了安装包的绝大部分体积），保留其余全部截图、标注、发送、历史、录制、拼图与滚动截图能力。安装包约 51 MB，安装目录、设置和自启项与完整版完全独立，可以同时安装。
+精简版去掉了完整版的图片 OCR 与中英离线翻译（这两项占了安装包的绝大部分体积），保留其余全部截图、标注、发送、历史、录制、拼图与滚动截图能力。提供约 2.3 MB 的轻量安装包和约 47 MB 的自带运行环境安装包，安装目录、设置和自启项与完整版独立。
 
-## 下载
+## 下载与安装
 
-在 [GitHub Releases](https://github.com/EConG37/ScreenNote/releases/tag/v1.2.0-lite) 下载 1.2.0，两个包内容相同，任选其一：
+当前版本为 **1.2.7**，在 [GitHub Releases 下载测试版](https://github.com/EConG37/ScreenNote/releases/tag/v1.2.7-lite)。本地构建文件输出到 `lite/releases/1.2.7/`。
 
-- **安装包** `ScreenNoteLite-1.2.0-Setup-x64.exe`（约 51 MB）：双击后按中文向导安装到 `%LOCALAPPDATA%\Programs\ScreenNoteLite`，附带开始菜单和桌面快捷方式。
-- **免安装版** `ScreenNoteLite-1.2.0-portable-x64.zip`：解压到任意位置，双击 `ScreenNoteLite.exe` 即可运行。截图历史保存在解压目录的 `data/history`，不用了直接删文件夹。
+- **轻量安装包** `ScreenNoteLite-1.2.7-Light-Setup-x64.exe`：约 2.22 MiB，使用电脑已有的 x64 .NET 10 Desktop Runtime。缺少运行环境时会明确提示并终止安装。适合已装 .NET 10 的电脑；从自带环境版本升级时会清理旧运行库，保留截图资料。
+- **自带运行环境安装包** `ScreenNoteLite-1.2.7-Setup-x64.exe`：约 47 MB，安装后约 149 MiB（含卸载器，不含个人资料），无需另外安装 .NET。
+- 两种版本都有对应的 `portable-x64.zip` 免安装包。轻量 ZIP 同样需要 .NET 10 Desktop Runtime。
 
-两个包都自带 .NET 桌面运行环境，无需另外安装 .NET 或 Python；支持 Windows 10 2004 及以上的 x64 系统。安装包没有代码签名，Windows 可能提示「已保护你的电脑」，点「更多信息」→「仍要运行」即可。同一 Release 附带 `.sha256` 校验文件，可用 `Get-FileHash` 核对。
+安装到 `%LOCALAPPDATA%\Programs\ScreenNoteLite`，支持 Windows 10 2004 及以上的 x64 系统。安装包尚未签名；`.sha256` 文件用于核对下载完整性。若从开发项目目录启动出现临时目录拒绝访问，请将安装包复制到普通下载目录再运行，不需要关闭安全软件或修改整个磁盘权限。
+
+1.2.7 的截图标注工具采用纯图标单排，名称和快捷键在悬停时提示。全软件沿用银灰圆角风格与 80% 紧凑尺寸；截图和视频导出保持原始尺寸。
+
+录制编辑页提供大预览、底部时间线与原始、16:9、1:1 比例裁剪。GIF 和视频均支持实际播放、暂停、拖动进度、选段循环与预览静音；视频导出保留原有音轨。此版本同时包含视频解码、暂停缓存和轻量构建修复。
 
 ## 录制 GIF 与视频
 
@@ -72,9 +77,11 @@ GIF 导出按 1440 → 1080 → 840 → 640 → 480 的最长边逐级降档，�
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1 -Test
 powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 powershell -ExecutionPolicy Bypass -File scripts\build-portable.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1 -FrameworkDependent
+powershell -ExecutionPolicy Bypass -File scripts\validate.ps1
 ```
 
-`-Test` 会构建 Release 并运行程序内自检（标注渲染与撤销、选区转换、PNG 导出等）。安装包与免安装版分别输出到 `lite/output`。
+`-Test` 会构建 Release 并运行程序内自检（标注渲染与撤销、选区转换、PNG 导出等）。安装包与免安装版分别输出到 `lite/releases/<版本号>/`。
 
 ## 完整版（已封存）
 

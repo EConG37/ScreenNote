@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference = 'Stop'
+param([switch]$FrameworkDependent)
+$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -9,12 +10,14 @@ $xml       = [xml](Get-Content -Raw $project)
 $version   = [string]@($xml.Project.PropertyGroup.Version | Where-Object { $_ })[0]
 if (-not $version) { throw "Cannot read Version from $project" }
 
-$buildRoot = Join-Path $root ".build\installer\$version"
+$flavor = if ($FrameworkDependent) { '-light' } else { '' }
+$buildRoot = Join-Path $root ('.build\installer\' + $version + $flavor)
 $payload   = Join-Path $buildRoot 'payload'
-$outputDir = if (Test-Path -LiteralPath (Join-Path $repoRoot 'src\ScreenNote\ScreenNote.csproj') -PathType Leaf) { Join-Path $repoRoot 'output\lite' } else { Join-Path $root 'output' }
-$zipPath   = Join-Path $outputDir "ScreenNoteLite-$version-portable-x64.zip"
-$rootName  = "ScreenNoteLite-$version-portable"
-$readmeSrc = Join-Path $root 'installer\portable-readme.txt'
+$outputDir = Join-Path $root ("releases\$version")
+$label = if ($FrameworkDependent) { '-Light' } else { '' }
+$zipPath   = Join-Path $outputDir "ScreenNoteLite-$version$label-portable-x64.zip"
+$rootName  = "ScreenNoteLite-$version$label-portable"
+$readmeSrc = Join-Path $root $(if ($FrameworkDependent) { 'installer\portable-readme-light.txt' } else { 'installer\portable-readme.txt' })
 # Chinese file name built from code points so this script stays pure ASCII (Windows PowerShell 5.1 reads ANSI).
 $cn        = [string]([char]0x4F7F) + [char]0x7528 + [char]0x8BF4 + [char]0x660E
 
@@ -25,6 +28,10 @@ if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
 $files = Get-ChildItem $payload -Recurse -File | Sort-Object FullName
+foreach ($file in $files) {
+    $relative = $file.FullName.Substring($payload.Length + 1).Replace('\', '/')
+    if ($relative -match '^(data|history|recordings)/|(^|/)(settings\.json|browser-pairing\.json|\.env(\..*)?)$') { throw ('Private content must not be packaged: ' + $relative) }
+}
 $rawBytes = ($files | Measure-Object Length -Sum).Sum
 Write-Output ("Payload: " + $files.Count + " files, " + [math]::Round($rawBytes / 1MB, 2) + " MB")
 
@@ -67,9 +74,10 @@ foreach ($f in $files) {
     $key = $rootName + '/' + $relative
     if (-not $map.ContainsKey($key)) { $bad++; Write-Output ("MISSING: " + $relative); continue }
     $entry = $map[$key]
-    $memory = New-Object System.IO.MemoryStream
-    $stream = $entry.Open(); $stream.CopyTo($memory); $stream.Dispose()
-    $actual = ([System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($memory.ToArray()))).Replace('-', '')
+    $stream = $entry.Open()
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try { $actual = ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '') }
+    finally { $stream.Dispose(); $algorithm.Dispose() }
     if ($actual -ne (Get-FileHash $f.FullName -Algorithm SHA256).Hash) { $bad++; Write-Output ("HASH MISMATCH: " + $relative) }
 }
 $archive.Dispose()

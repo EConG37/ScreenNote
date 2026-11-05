@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -34,6 +34,37 @@ public static class StorageLocationService
             4096, FileOptions.DeleteOnClose);
         file.WriteByte(1);
         file.Flush(true);
+    }
+
+    /// <summary>
+    /// Recording has to succeed even when the configured data folder turned read-only
+    /// (another account owns it, the drive is gone, permissions were reset). Returns the
+    /// data directory the recording should actually write into, plus whether it fell back.
+    /// </summary>
+    public static (string DataDirectory, bool UsedFallback) ResolveRecordingDirectory(string? preferredDataDirectory)
+    {
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(preferredDataDirectory)) candidates.Add(preferredDataDirectory);
+        candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ScreenNoteLite"));
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "data"));
+
+        for (var index = 0; index < candidates.Count; index++)
+        {
+            try
+            {
+                var directory = NormalizeDataDirectory(candidates[index]);
+                var recordings = Path.Combine(directory, "recordings");
+                Directory.CreateDirectory(recordings);
+                EnsureWritableDataDirectory(recordings);
+                return (directory, index > 0);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "recording-diag.log"), DateTime.Now.ToString("HH:mm:ss") + " candidate=" + candidates[index] + " -> " + error.GetType().Name + ": " + error.Message + Environment.NewLine); } catch { }
+            }
+        }
+
+        throw new IOException("找不到可写入的录像文件夹，请在设置里重新选择资料位置。");
     }
 
     public static int CopyHistory(string sourceDataDirectory, string destinationDataDirectory)

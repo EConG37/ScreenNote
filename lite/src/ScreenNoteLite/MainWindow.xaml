@@ -1,42 +1,399 @@
-<Window x:Class="ScreenNote.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:ScreenNote" Title="拾屏 精简版 · 截图历史" Width="1080" Height="780" MinWidth="900" MinHeight="580" WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_KeyDown">
-
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:local="clr-namespace:ScreenNote" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="ScreenNote.MainWindow" Style="{StaticResource {x:Type Window}}" Title="拾屏 精简版 · 截图历史" Width="1080" Height="780" MinWidth="1000" MinHeight="700" WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_KeyDown" FontSize="14" UseLayoutRounding="True">
   <Window.Resources>
-    <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Padding" Value="12,8"/></Style>
-    <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource QuietButton}"><Setter Property="Width" Value="94"/><Setter Property="Height" Value="56"/><Setter Property="Padding" Value="8,6"/><Setter Property="Margin" Value="2"/><Setter Property="FontSize" Value="12"/></Style>
-    <DrawingBrush x:Key="WorkspacePattern" TileMode="Tile" Viewport="0,0,18,18" ViewportUnits="Absolute"><DrawingBrush.Drawing><DrawingGroup><GeometryDrawing Brush="#EFF0ED"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,18,18"/></GeometryDrawing.Geometry></GeometryDrawing><GeometryDrawing Brush="#D9DCD4"><GeometryDrawing.Geometry><EllipseGeometry Center="9,9" RadiusX="0.65" RadiusY="0.65"/></GeometryDrawing.Geometry></GeometryDrawing></DrawingGroup></DrawingBrush.Drawing></DrawingBrush>
+    <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource StudioToolButton}">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="11,8" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
+      <Setter Property="Width" Value="86" />
+      <Setter Property="Height" Value="58" />
+      <Setter Property="Padding" Value="6,5" />
+      <Setter Property="Margin" Value="2,0" />
+    </Style>
+    <Style x:Key="AnnotationButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Margin" Value="1,0" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+    <LinearGradientBrush x:Key="WorkspacePattern" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#EDF2FB" Offset="0" />
+      <GradientStop Color="#E3EAF7" Offset="1" />
+    </LinearGradientBrush>
   </Window.Resources>
   <Grid Background="{StaticResource Canvas}">
-    <Grid.RowDefinitions><RowDefinition Height="64" /><RowDefinition Height="76" /><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-    <Border Background="White" BorderBrush="#E1E4DD" BorderThickness="0,0,0,1">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="64" />
+      <RowDefinition Height="84" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="32" />
+    </Grid.RowDefinitions>
+    <Border Background="#ACF9FBFF" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
       <DockPanel Margin="24,0" VerticalAlignment="Center">
-        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Style="{StaticResource QuietButton}" x:Name="CollageButton" Content="多图拼贴" Click="Collage_Click" ToolTip="拼接多张截图，或只保留底部台词生成分享图" /><Button Style="{StaticResource QuietButton}" x:Name="HistoryButton" Content="截图历史" Click="History_Click" /><Button Style="{StaticResource QuietButton}" Content="导入图片" Click="Import_Click" /><Button Style="{StaticResource QuietButton}" Content="设置" Click="Settings_Click" /><Button Style="{StaticResource QuietButton}" x:Name="RecordButton" Content="录制" Click="Record_Click" ToolTip="录制屏幕，输出 GIF 或 MP4 视频" /><Button x:Name="CaptureButton" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Margin="10,3,0,3"><StackPanel Orientation="Horizontal"><TextBlock Text="截图" FontWeight="SemiBold" /><TextBlock x:Name="HotkeyHint" Text="Ctrl+Alt+A" Opacity="0.75" Margin="10,0,0,0" FontSize="11" VerticalAlignment="Center" /></StackPanel></Button></StackPanel>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Image Source="{x:Static local:AppIcon.WindowImage}" Width="30" Height="30" Margin="0,0,10,0" /><TextBlock Text="拾屏 精简版" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" /><TextBlock x:Name="ModeHint" Text="截图历史" FontSize="11" Foreground="{StaticResource Muted}" Margin="16,0,0,0" VerticalAlignment="Center" /></StackPanel>
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+          <Button Style="{StaticResource QuietButton}" x:Name="HistoryButton" Click="History_Click">
+            <StackPanel Orientation="Horizontal">
+              <local:ToolGlyph Kind="history" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+              <TextBlock Text="历史" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource QuietButton}" Click="Import_Click">
+            <StackPanel Orientation="Horizontal">
+              <local:ToolGlyph Kind="folder" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+              <TextBlock Text="导入" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource QuietButton}" Click="Settings_Click">
+            <StackPanel Orientation="Horizontal">
+              <local:ToolGlyph Kind="settings" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+              <TextBlock Text="设置" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Image Source="{x:Static local:AppIcon.WindowImage}" Width="34" Height="34" Margin="0,0,11,0" />
+          <TextBlock Text="拾屏" FontSize="21" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="精简版" FontSize="13" Foreground="{StaticResource Muted}" Margin="9,3,0,0" VerticalAlignment="Center" />
+          <Border Width="1" Height="24" Background="{StaticResource Line}" Margin="20,0" />
+          <TextBlock x:Name="ModeHint" Text="截图历史" FontSize="15" Foreground="{StaticResource Muted}" Margin="0" VerticalAlignment="Center" />
+        </StackPanel>
       </DockPanel>
     </Border>
-    <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1"><DockPanel Margin="20,5" LastChildFill="False"><StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="14,0,0,0"><ComboBox x:Name="EditorTargetChoice" Width="124" SelectedIndex="0" SelectionChanged="AiTarget_Changed"><ComboBoxItem Content="DeepSeek" Tag="deepseek" /><ComboBoxItem Content="ChatGPT" Tag="chatgpt" /><ComboBoxItem Content="豆包" Tag="doubao" /></ComboBox><TextBlock x:Name="PrimaryContext" Text="选择截图或开始截图" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,3,0,0"/></StackPanel><StackPanel x:Name="PrimaryActionBar" Orientation="Horizontal" VerticalAlignment="Center"><Button AutomationProperties.Name="发送给 AI" x:Name="PrimarySendButton" Style="{StaticResource ActionButton}" Click="PrimarySend_Click" Tag="" ToolTip="把当前截图或历史中勾选的截图带到所选 AI 网页"><StackPanel><local:ToolGlyph Kind="send" HorizontalAlignment="Center"/><TextBlock Text="发送给 AI" Margin="0,5,0,0"/></StackPanel></Button><Button AutomationProperties.Name="高亮选框" x:Name="PrimaryHighlightButton" Style="{StaticResource ActionButton}" Click="PrimaryHighlight_Click" Tag="" ToolTip="淡色底、细边框与圆角四角标记（F）"><StackPanel><local:ToolGlyph Kind="focus" HorizontalAlignment="Center"/><TextBlock Text="高亮选框" Margin="0,5,0,0"/></StackPanel></Button></StackPanel></DockPanel></Border>
-    <Grid x:Name="HistoryPanel" Grid.Row="2" Margin="30,28,30,16">
-      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-      <StackPanel Margin="0,0,0,16"><TextBlock Text="截图资料库" FontSize="28" FontWeight="SemiBold" /><TextBlock x:Name="HistoryCount" Text="截图自动保存" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,8,0,0" /></StackPanel>
-      <Border Grid.Row="1" Background="Transparent" Padding="0,0,0,12" Margin="0,0,0,16" BorderBrush="#E1E4DD" BorderThickness="0,0,0,1"><DockPanel VerticalAlignment="Center"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ComboBox Visibility="Collapsed" x:Name="HistoryTargetChoice" Width="118" SelectedIndex="0" SelectionChanged="AiTarget_Changed"><ComboBoxItem Content="DeepSeek" Tag="deepseek" /><ComboBoxItem Content="ChatGPT" Tag="chatgpt" /><ComboBoxItem Content="豆包" Tag="doubao" /></ComboBox><Button Visibility="Collapsed" x:Name="HistorySendButton" Content="发送所选" Click="HistoryBatchSend_Click" Style="{StaticResource PrimaryButton}" IsEnabled="False" /><Button Style="{StaticResource QuietButton}" x:Name="HistoryExportButton" Content="导出所选" Click="HistoryExport_Click" IsEnabled="False" /><Button Style="{StaticResource QuietButton}" x:Name="HistoryDeleteButton" Content="删除所选" Click="DeleteSelectedHistory_Click" Foreground="#A34936" IsEnabled="False" ToolTip="删除勾选的截图及其标注" /></StackPanel><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Button Style="{StaticResource QuietButton}" Content="全选" Click="SelectAllHistory_Click" FontSize="11" Padding="9,7" /><Button Style="{StaticResource QuietButton}" Content="清空选择" Click="ClearHistorySelection_Click" FontSize="11" Padding="9,7" /><TextBlock x:Name="HistorySelectionCount" Text="勾选图片后批量处理" Foreground="{StaticResource Muted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center" /></StackPanel></DockPanel></Border>
-      <Grid Grid.Row="2">
-        <ListBox x:Name="HistoryList" SelectionMode="Extended" SelectionChanged="HistorySelection_Changed" MouseDoubleClick="HistoryList_DoubleClick" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-          <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Margin" Value="0,0,0,10" /><Setter Property="Padding" Value="0" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Card" Background="White" BorderBrush="#E1E4DD" BorderThickness="1" CornerRadius="10" Padding="18"><ContentPresenter /></Border><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="Background" Value="#F1F3EE" /><Setter TargetName="Card" Property="BorderBrush" Value="#7B8770" /></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#D1D5DB" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-          <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="208" /><ColumnDefinition Width="*" /><ColumnDefinition Width="148" /></Grid.ColumnDefinitions><CheckBox IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTip="加入批量处理" /><Border Grid.Column="1" Width="194" Height="112" CornerRadius="7" Background="#F1F2EE" ClipToBounds="True"><Image Source="{Binding Thumbnail}" Stretch="Uniform" /></Border><StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="18,0,12,0"><TextBlock Text="{Binding Title}" ToolTip="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Medium" FontSize="17" /><TextBlock Text="{Binding CreatedAt, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,9,0,0" /><TextBlock Text="双击继续编辑" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,7,0,0" /></StackPanel><StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right"><Button Style="{StaticResource QuietButton}" Content="编辑" Tag="{Binding}" Click="EditHistory_Click" FontSize="11" Padding="10,8" /><Button Style="{StaticResource QuietButton}" x:Name="DeleteHistoryEntryButton" Content="删除" Tag="{Binding}" Click="DeleteHistoryEntry_Click" Foreground="#A34936" FontSize="11" Padding="10,8" ToolTip="删除这张截图" /></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate>
-        </ListBox>
-        <StackPanel x:Name="EmptyHistoryPanel" HorizontalAlignment="Center" VerticalAlignment="Center"><Border Width="84" Height="84" Background="#EDEFE9" CornerRadius="24" HorizontalAlignment="Center" Margin="0,0,0,22"><local:ToolGlyph Kind="capture" Width="36" Height="36" Foreground="#6A735F" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="从第一张截图开始" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" /><TextBlock Text="捕捉、编辑，再交给 AI。截图会自动保留在这里。" Foreground="{StaticResource Muted}" Margin="0,12,0,24" /><Button Content="开始截图" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Width="150" /></StackPanel>
+    <Border Background="#80F9FBFF" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Grid.Row="1">
+      <DockPanel Margin="20,10" LastChildFill="False">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Right">
+          <StackPanel x:Name="PrimaryActionBar" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button AutomationProperties.Name="发送给 AI" x:Name="PrimarySendButton" Style="{StaticResource ActionButton}" Click="PrimarySend_Click" Tag="" ToolTip="把当前截图或历史中勾选的截图带到所选 AI 网页">
+              <StackPanel>
+                <local:ToolGlyph Kind="send" HorizontalAlignment="Center" Width="22" Height="22" />
+                <TextBlock Text="发送给 AI" Margin="0,5,0,0" />
+              </StackPanel>
+            </Button>
+            <Button AutomationProperties.Name="高亮选框" x:Name="PrimaryHighlightButton" Style="{StaticResource ActionButton}" Click="PrimaryHighlight_Click" Tag="" ToolTip="淡色底、细边框与圆角四角标记（F）">
+              <StackPanel>
+                <local:ToolGlyph Kind="focus" HorizontalAlignment="Center" Width="22" Height="22" />
+                <TextBlock Text="高亮选框" Margin="0,5,0,0" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <StackPanel Width="144" Margin="10,0,0,0" VerticalAlignment="Center">
+            <ComboBox x:Name="EditorTargetChoice" Width="144" SelectedIndex="0" SelectionChanged="AiTarget_Changed" MinHeight="32" AutomationProperties.Name="目标 AI">
+              <ComboBoxItem Content="DeepSeek" Tag="deepseek" />
+              <ComboBoxItem Content="ChatGPT" Tag="chatgpt" />
+              <ComboBoxItem Content="豆包" Tag="doubao" />
+            </ComboBox>
+            <TextBlock x:Name="PrimaryContext" Text="选择截图或开始截图" FontSize="13" Foreground="{StaticResource Muted}" HorizontalAlignment="Left" Margin="2,3,0,0" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="CaptureButton" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" Width="142" Height="58" Padding="13,5">
+            <StackPanel Orientation="Horizontal">
+              <local:ToolGlyph Kind="capture" Width="25" Height="25" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <StackPanel>
+                <TextBlock Text="截图" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock x:Name="HotkeyHint" Text="Ctrl+Alt+A" Opacity="0.8" Margin="0" FontSize="13" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource ActionButton}" x:Name="RecordButton" Click="Record_Click" ToolTip="录制屏幕，输出 GIF 或 MP4 视频">
+            <StackPanel Orientation="Vertical">
+              <local:ToolGlyph Kind="video" Width="23" Height="23" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,5" />
+              <TextBlock Text="GIF / 视频" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Click="Scroll_Click" Style="{StaticResource ActionButton}" ToolTip="滚动截取长页面" x:Name="ScrollCaptureButton">
+            <StackPanel Orientation="Vertical">
+              <local:ToolGlyph Kind="scroll" Width="23" Height="23" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,5" />
+              <TextBlock Text="滚动截图" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource ActionButton}" x:Name="CollageButton" Click="Collage_Click" ToolTip="拼接多张截图，或只保留底部台词生成分享图">
+            <StackPanel Orientation="Vertical">
+              <local:ToolGlyph Kind="collage" Width="23" Height="23" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,5" />
+              <TextBlock Text="拼图" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Border Style="{StaticResource StudioPanel}" Margin="20,16,20,14" Grid.Row="2">
+      <Grid x:Name="HistoryPanel" Margin="18,17,18,12">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+          <TextBlock Text="截图资料库" FontSize="23" FontWeight="SemiBold" />
+          <TextBlock x:Name="HistoryCount" Text="截图自动保存" Foreground="{StaticResource Muted}" FontSize="13" Margin="0,8,0,0" />
+        </StackPanel>
+        <Border Grid.Row="1" Background="Transparent" Padding="0,0,0,12" Margin="0,0,0,16" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+          <DockPanel VerticalAlignment="Center">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <ComboBox Visibility="Collapsed" x:Name="HistoryTargetChoice" Width="118" SelectedIndex="0" SelectionChanged="AiTarget_Changed">
+                <ComboBoxItem Content="DeepSeek" Tag="deepseek" />
+                <ComboBoxItem Content="ChatGPT" Tag="chatgpt" />
+                <ComboBoxItem Content="豆包" Tag="doubao" />
+              </ComboBox>
+              <Button Visibility="Collapsed" x:Name="HistorySendButton" Content="发送所选" Click="HistoryBatchSend_Click" Style="{StaticResource PrimaryButton}" IsEnabled="False" />
+              <Button Style="{StaticResource QuietButton}" x:Name="HistoryExportButton" Click="HistoryExport_Click" IsEnabled="False">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="download" Width="17" Height="17" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="导出所选" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Style="{StaticResource QuietButton}" x:Name="HistoryDeleteButton" Click="DeleteSelectedHistory_Click" Foreground="#A75163" IsEnabled="False" ToolTip="删除勾选的截图及其标注">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="delete" Width="17" Height="17" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="删除所选" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Button Style="{StaticResource QuietButton}" Content="全选" Click="SelectAllHistory_Click" FontSize="13" Padding="9,7" />
+              <Button Style="{StaticResource QuietButton}" Content="清空选择" Click="ClearHistorySelection_Click" FontSize="13" Padding="9,7" />
+              <TextBlock x:Name="HistorySelectionCount" Text="勾选图片后批量处理" Foreground="{StaticResource Muted}" FontSize="13" Margin="12,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+          </DockPanel>
+        </Border>
+        <Grid Grid.Row="2">
+          <ListBox x:Name="HistoryList" SelectionMode="Extended" SelectionChanged="HistorySelection_Changed" MouseDoubleClick="HistoryList_DoubleClick" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Margin" Value="0,0,0,10" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                      <Border x:Name="Card" Background="#BFFFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="14">
+                        <ContentPresenter />
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="Card" Property="Background" Value="{StaticResource AccentSoft}" />
+                          <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Accent}" />
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34" />
+                    <ColumnDefinition Width="208" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="148" />
+                  </Grid.ColumnDefinitions>
+                  <CheckBox IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTip="加入批量处理" />
+                  <Border Grid.Column="1" Width="194" Height="112" CornerRadius="10" Background="#E8EDF8" ClipToBounds="True">
+                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                  </Border>
+                  <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="18,0,12,0">
+                    <TextBlock Text="{Binding Title}" ToolTip="{Binding Title}" TextTrimming="CharacterEllipsis" FontWeight="Medium" FontSize="17" />
+                    <TextBlock Text="{Binding CreatedAt, StringFormat={}{0:yyyy/MM/dd HH:mm:ss}}" Foreground="{StaticResource Muted}" FontSize="13" Margin="0,9,0,0" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource QuietButton}" Tag="{Binding}" Click="EditHistory_Click" FontSize="13" Padding="10,8">
+                      <StackPanel Orientation="Horizontal">
+                        <local:ToolGlyph Kind="pen" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="编辑" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource QuietButton}" x:Name="DeleteHistoryEntryButton" Tag="{Binding}" Click="DeleteHistoryEntry_Click" Foreground="#A75163" FontSize="13" Padding="10,8" ToolTip="删除这张截图">
+                      <StackPanel Orientation="Horizontal">
+                        <local:ToolGlyph Kind="delete" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="删除" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" VerticalContentAlignment="Center" Visibility="{Binding Visibility, ElementName=EmptyHistoryPanel}">
+            <StackPanel x:Name="EmptyHistoryPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Border Width="84" Height="84" Background="{StaticResource AccentSoft}" CornerRadius="24" HorizontalAlignment="Center" Margin="0,0,0,22">
+                <local:ToolGlyph Kind="capture" Width="36" Height="36" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Text="从第一张截图开始" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" />
+              <TextBlock Text="截图与标注会自动保存在这里" Foreground="{StaticResource Muted}" Margin="0,12,0,24" />
+              <Button Content="开始截图" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Width="150" />
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+        <TextBlock x:Name="HistoryResult" Grid.Row="3" Foreground="{StaticResource Muted}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0" />
       </Grid>
-      <TextBlock x:Name="HistoryResult" Grid.Row="3" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+    </Border>
+    <Grid x:Name="EditorPanel" Grid.Row="2" Margin="20,16,20,14" Visibility="Collapsed">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Border Style="{StaticResource StudioPanel}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="52" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <WrapPanel x:Name="ToolPanel" Margin="12,9">
+            <Button AutomationProperties.Name="选择" Tag="Select" Click="Tool_Click" ToolTip="选择（V）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="select" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Border Width="1" Height="30" Margin="9,0" VerticalAlignment="Center" Background="{StaticResource Line}" />
+            <Button AutomationProperties.Name="画笔" Tag="Pen" Click="Tool_Click" ToolTip="画笔（P）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="pen" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="箭头" Tag="Arrow" Click="Tool_Click" ToolTip="箭头（A）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="arrow" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="直线" Tag="Line" Click="Tool_Click" ToolTip="直线（L）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="line" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Border Width="1" Height="30" Margin="9,0" VerticalAlignment="Center" Background="{StaticResource Line}" />
+            <Button AutomationProperties.Name="矩形" Tag="Rectangle" Click="Tool_Click" ToolTip="矩形（R）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="rect" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="椭圆" Tag="Ellipse" Click="Tool_Click" ToolTip="椭圆（E）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="ellipse" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Border Width="1" Height="30" Margin="9,0" VerticalAlignment="Center" Background="{StaticResource Line}" />
+            <Button AutomationProperties.Name="文字" Tag="Text" Click="Tool_Click" ToolTip="文字（T）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="text" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="荧光笔" Tag="Highlighter" Click="Tool_Click" ToolTip="荧光笔（H）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="highlighter" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="序号" Tag="Number" Click="Tool_Click" ToolTip="序号（N）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="number" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Border Width="1" Height="30" Margin="9,0" VerticalAlignment="Center" Background="{StaticResource Line}" />
+            <Button AutomationProperties.Name="马赛克" Tag="Mosaic" Click="Tool_Click" ToolTip="马赛克（M）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="mosaic" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+            <Button AutomationProperties.Name="遮挡" Tag="Cover" Click="Tool_Click" ToolTip="遮挡（B）" Style="{StaticResource AnnotationButton}">
+              <local:ToolGlyph Kind="cover" HorizontalAlignment="Center" Width="22" Height="22" />
+            </Button>
+          </WrapPanel>
+          <DockPanel Grid.Row="1" Margin="14,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button Style="{StaticResource QuietButton}" ToolTip="撤销 Ctrl+Z" Click="Undo_Click" Padding="9,5">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="undo" Width="17" Height="17" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="撤销" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Style="{StaticResource QuietButton}" ToolTip="重做 Ctrl+Y" Click="Redo_Click" Padding="9,5">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="redo" Width="17" Height="17" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="重做" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Style="{StaticResource QuietButton}" Click="Delete_Click" Padding="10,5" FontSize="13">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="delete" Width="17" Height="17" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="删除标注" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="颜色" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="0,0,7,0" />
+              <ComboBox x:Name="ColorChoice" Width="82" SelectionChanged="Style_Changed" AutomationProperties.Name="颜色">
+                <ComboBoxItem Content="红色" Tag="#EA6257" />
+                <ComboBoxItem Content="绿色" Tag="#18756B" />
+                <ComboBoxItem Content="蓝色" Tag="#397FD5" />
+                <ComboBoxItem Content="黄色" Tag="#E6B741" />
+                <ComboBoxItem Content="黑色" Tag="#253C3C" />
+                <ComboBoxItem Content="白色" Tag="#FFFFFF" />
+              </ComboBox>
+              <TextBlock Text="线宽" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="13,0,7,0" />
+              <ComboBox x:Name="WidthChoice" Width="65" SelectionChanged="Style_Changed" AutomationProperties.Name="线宽">
+                <ComboBoxItem Content="细" Tag="2" />
+                <ComboBoxItem Content="中" Tag="4" />
+                <ComboBoxItem Content="粗" Tag="8" />
+              </ComboBox>
+              <TextBlock Text="字号" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="13,0,7,0" />
+              <ComboBox x:Name="FontChoice" Width="66" SelectionChanged="Style_Changed" AutomationProperties.Name="字号">
+                <ComboBoxItem Content="18" />
+                <ComboBoxItem Content="24" />
+                <ComboBoxItem Content="32" />
+                <ComboBoxItem Content="48" />
+              </ComboBox>
+              <TextBlock Text="自动保存" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </StackPanel>
+          </DockPanel>
+          <Border Grid.Row="2" Background="{StaticResource WorkspacePattern}" ClipToBounds="True">
+            <Grid>
+              <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="12" PreviewMouseWheel="ImageZoom_Wheel">
+                <Viewbox x:Name="ImageView" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <local:AnnotationSurface x:Name="Surface" Focusable="True" />
+                </Viewbox>
+              </ScrollViewer>
+              <StackPanel x:Name="WelcomePanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="开始截图" FontSize="22" />
+                <Button Content="开始截图" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Margin="0,20,0,0" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <DockPanel Margin="12,9" Grid.Row="3">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Right">
+              <Button Style="{StaticResource QuietButton}" Click="CopyImage_Click" FontSize="13" Padding="10,8">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="copy" Width="18" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="复制图片" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Style="{StaticResource QuietButton}" Click="SaveImage_Click" FontSize="13" Padding="10,8">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="download" Width="18" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="保存图片" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Style="{StaticResource PrimaryButton}" Content="完成" Click="FinishEditing_Click" Padding="12,8" FontSize="13" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Button Click="ZoomOut_Click" ToolTip="缩小" Padding="8,8" FontSize="13" Style="{StaticResource QuietButton}" AutomationProperties.Name="缩小">
+                <local:ToolGlyph Kind="minus" Width="17" Height="17" VerticalAlignment="Center" />
+              </Button>
+              <Button Click="ZoomIn_Click" ToolTip="放大（Ctrl+滚轮）" Padding="8,8" FontSize="13" Style="{StaticResource QuietButton}" AutomationProperties.Name="放大">
+                <local:ToolGlyph Kind="plus" Width="17" Height="17" VerticalAlignment="Center" />
+              </Button>
+              <ComboBox x:Name="ZoomChoice" Width="80" SelectionChanged="Zoom_Changed">
+                <ComboBoxItem Content="适应" />
+                <ComboBoxItem Content="50%" />
+                <ComboBoxItem Content="100%" />
+                <ComboBoxItem Content="150%" />
+                <ComboBoxItem Content="200%" />
+                <ComboBoxItem Content="400%" />
+              </ComboBox>
+              <TextBlock x:Name="ZoomValue" VerticalAlignment="Center" Margin="8,0" />
+              <Button Click="ViewImage_Click" Padding="10,6" ToolTip="独立大图查看，支持滚轮缩放和拖动" FontSize="13" Style="{StaticResource QuietButton}">
+                <StackPanel Orientation="Horizontal">
+                  <local:ToolGlyph Kind="zoom" Width="18" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0,7,0" />
+                  <TextBlock Text="放大查看" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+          </DockPanel>
+        </Grid>
+      </Border>
     </Grid>
-    <Grid x:Name="EditorPanel" Grid.Row="2" Margin="14,12,14,10" Visibility="Collapsed">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-      <Border Background="White" CornerRadius="10" BorderBrush="#E1E4DD" BorderThickness="1"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="44" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <WrapPanel x:Name="ToolPanel" Margin="10,6"><Button AutomationProperties.Name="选择" Tag="Select" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="选择"><StackPanel><local:ToolGlyph Kind="select" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="选择" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="画笔" Tag="Pen" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="画笔"><StackPanel><local:ToolGlyph Kind="pen" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="画笔" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="箭头" Tag="Arrow" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="箭头"><StackPanel><local:ToolGlyph Kind="arrow" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="箭头" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="直线" Tag="Line" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="直线"><StackPanel><local:ToolGlyph Kind="line" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="直线" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="矩形" Tag="Rectangle" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="矩形"><StackPanel><local:ToolGlyph Kind="rect" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="矩形" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="椭圆" Tag="Ellipse" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="椭圆"><StackPanel><local:ToolGlyph Kind="ellipse" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="椭圆" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="文字" Tag="Text" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="文字"><StackPanel><local:ToolGlyph Kind="text" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="文字" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="荧光笔" Tag="Highlighter" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="荧光笔"><StackPanel><local:ToolGlyph Kind="highlighter" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="荧光笔" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="序号" Tag="Number" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="序号"><StackPanel><local:ToolGlyph Kind="number" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="序号" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="马赛克" Tag="Mosaic" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="马赛克"><StackPanel><local:ToolGlyph Kind="mosaic" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="马赛克" Margin="0,4,0,0"/></StackPanel></Button><Button AutomationProperties.Name="遮挡" Tag="Cover" Click="Tool_Click" Background="Transparent" BorderBrush="Transparent" Width="54" Height="50" Padding="5" FontSize="11" Margin="2" ToolTip="遮挡"><StackPanel><local:ToolGlyph Kind="cover" HorizontalAlignment="Center" Width="18" Height="18"/><TextBlock Text="遮挡" Margin="0,4,0,0"/></StackPanel></Button></WrapPanel>
-        <DockPanel Grid.Row="1" Margin="9,0"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Style="{StaticResource QuietButton}" Content="撤销" ToolTip="撤销 Ctrl+Z" Click="Undo_Click" Padding="9,5" /><Button Style="{StaticResource QuietButton}" Content="重做" ToolTip="重做 Ctrl+Y" Click="Redo_Click" Padding="9,5" /><Button Style="{StaticResource QuietButton}" Content="删除标注" Click="Delete_Click" Padding="10,5" FontSize="11" /></StackPanel><StackPanel Orientation="Horizontal"><ComboBox x:Name="ColorChoice" Width="85" SelectionChanged="Style_Changed"><ComboBoxItem Content="红色" Tag="#EA6257" /><ComboBoxItem Content="绿色" Tag="#18756B" /><ComboBoxItem Content="蓝色" Tag="#397FD5" /><ComboBoxItem Content="黄色" Tag="#E6B741" /><ComboBoxItem Content="黑色" Tag="#253C3C" /><ComboBoxItem Content="白色" Tag="#FFFFFF" /></ComboBox><ComboBox x:Name="WidthChoice" Width="62" SelectionChanged="Style_Changed"><ComboBoxItem Content="细" Tag="2" /><ComboBoxItem Content="中" Tag="4" /><ComboBoxItem Content="粗" Tag="8" /></ComboBox><ComboBox x:Name="FontChoice" Width="62" SelectionChanged="Style_Changed"><ComboBoxItem Content="18" /><ComboBoxItem Content="24" /><ComboBoxItem Content="32" /><ComboBoxItem Content="48" /></ComboBox><TextBlock Text="自动保存" Foreground="{StaticResource Muted}" FontSize="10" VerticalAlignment="Center" Margin="12,0,0,0" /></StackPanel></DockPanel>
-        <Border Grid.Row="2" Background="{StaticResource WorkspacePattern}" ClipToBounds="True"><Grid><ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Padding="12" PreviewMouseWheel="ImageZoom_Wheel"><Viewbox x:Name="ImageView" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"><local:AnnotationSurface x:Name="Surface" Focusable="True" /></Viewbox></ScrollViewer><StackPanel x:Name="WelcomePanel" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="开始截图" FontSize="22" /><Button Content="开始截图" Click="Capture_Click" Style="{StaticResource PrimaryButton}" Margin="0,20,0,0" /></StackPanel></Grid></Border>
-        <WrapPanel Grid.Row="3" Margin="9,8" VerticalAlignment="Center"><Button Content="−" Click="ZoomOut_Click" ToolTip="缩小" Padding="10,5"/><Button Content="＋" Click="ZoomIn_Click" ToolTip="放大（Ctrl+滚轮）" Padding="10,5"/><ComboBox x:Name="ZoomChoice" Width="80" SelectionChanged="Zoom_Changed"><ComboBoxItem Content="适应" /><ComboBoxItem Content="50%" /><ComboBoxItem Content="100%" /><ComboBoxItem Content="150%" /><ComboBoxItem Content="200%" /><ComboBoxItem Content="400%" /></ComboBox><TextBlock x:Name="ZoomValue" VerticalAlignment="Center" Margin="8,0"/><Button Content="放大查看" Click="ViewImage_Click" Padding="10,6" ToolTip="独立大图查看，支持滚轮缩放和拖动"/><Button Style="{StaticResource QuietButton}" Content="复制图片" Click="CopyImage_Click" FontSize="11" Padding="10,8" /><Button Style="{StaticResource QuietButton}" Content="保存图片" Click="SaveImage_Click" FontSize="11" Padding="10,8" /><Button Style="{StaticResource PrimaryButton}" Content="完成" Click="FinishEditing_Click" Padding="12,8" /></WrapPanel>
-      </Grid></Border>
-      
-    </Grid>
-    <Border Grid.Row="3" Background="#FCFCFA" BorderBrush="#E1E4DD" BorderThickness="0,1,0,0"><DockPanel Margin="24,0" VerticalAlignment="Center"><TextBlock x:Name="ImageInfo" DockPanel.Dock="Right" Text="准备就绪" FontSize="10" Foreground="{StaticResource Muted}" /><TextBlock x:Name="StatusText" Text="按快捷键直接截图，每张截图自动保留。" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" /></DockPanel></Border>
+    <Border Grid.Row="3" Background="#96F9FBFF" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+      <DockPanel Margin="24,0" VerticalAlignment="Center">
+        <TextBlock x:Name="ImageInfo" DockPanel.Dock="Right" Text="准备就绪" FontSize="13" Foreground="{StaticResource Muted}" />
+        <TextBlock x:Name="StatusText" Text="按快捷键直接截图，每张截图自动保留。" FontSize="13" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+      </DockPanel>
+    </Border>
   </Grid>
 </Window>

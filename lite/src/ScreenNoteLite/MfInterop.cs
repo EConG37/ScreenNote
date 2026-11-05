@@ -33,6 +33,32 @@ internal static class Mf
 
     internal static ulong Pack(uint high, uint low) => ((ulong)high << 32) | low;
 
+    // Media Foundation startup/shutdown are process-wide; every consumer (writer, reader)
+    // shares this refcount so neither tears the subsystem down while the other is using it.
+    private static readonly object _mfSync = new();
+    private static int _mfUsers;
+
+    internal static void AcquireMf()
+    {
+        lock (_mfSync)
+        {
+            if (_mfUsers == 0) Check(MFStartup(Version, 0), "MFStartup");
+            _mfUsers++;
+        }
+    }
+
+    internal static void ReleaseMf()
+    {
+        lock (_mfSync) { if (_mfUsers > 0 && --_mfUsers == 0) MFShutdown(); }
+    }
+
+    /// <summary>Reads a UINT32 attribute as a signed value; returns null when the attribute is absent.</summary>
+    internal static int? TryGetInt32(IMFMediaType type, Guid key)
+    {
+        var hr = type.GetUINT32(ref key, out var value);
+        return hr < 0 ? null : unchecked((int)value);
+    }
+
     internal static void Set(IMFAttributes attributes, Guid key, uint value) => Check(attributes.SetUINT32(ref key, value), "SetUINT32");
     internal static void Set(IMFMediaType type, Guid key, uint value) => Check(type.SetUINT32(ref key, value), "SetUINT32");
     internal static void Set64(IMFMediaType type, Guid key, ulong value) => Check(type.SetUINT64(ref key, value), "SetUINT64");
@@ -54,7 +80,7 @@ internal static class Mf
 
     internal static void ReleaseCom(object? com)
     {
-        if (com != null && Marshal.IsComObject(com)) Marshal.FinalReleaseComObject(com);
+        if (com != null && Marshal.IsComObject(com)) Marshal.ReleaseComObject(com);
     }
 
     /// <summary>Stream and flag constants of the source reader.</summary>
@@ -62,9 +88,18 @@ internal static class Mf
     {
         internal const uint AllStreams = 0xFFFFFFFE;
         internal const uint FirstVideoStream = 0xFFFFFFFC;
+        internal const uint FirstAudioStream = 0xFFFFFFFD;
         internal const uint EndOfStream = 0x2;
         internal const uint NativeMediaTypeChanged = 0x10;
         internal const uint CurrentMediaTypeChanged = 0x20;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    internal struct PositionVariant
+    {
+        [FieldOffset(0)] internal ushort Type;
+        [FieldOffset(8)] internal long Ticks;
+        internal static PositionVariant At(long ticks) => new() { Type = 20, Ticks = ticks };
     }
 
     internal static class MediaTypes
@@ -264,11 +299,11 @@ internal static class Mf
         [PreserveSig] int GetNativeMediaType(uint streamIndex, uint mediaTypeIndex, out IMFMediaType mediaType);
         [PreserveSig] int GetCurrentMediaType(uint streamIndex, out IMFMediaType mediaType);
         [PreserveSig] int SetCurrentMediaType(uint streamIndex, nint reserved, IMFMediaType mediaType);
-        [PreserveSig] int SetCurrentPosition(ref Guid timeFormat, nint position);
+        [PreserveSig] int SetCurrentPosition(ref Guid timeFormat, in PositionVariant position);
         [PreserveSig] int ReadSample(uint streamIndex, uint flags, out uint actualStreamIndex,
             out uint streamFlags, out long timestamp, out IMFSample? sample);
         [PreserveSig] int Flush(uint streamIndex);
-        [PreserveSig] int GetServiceForStream(uint streamIndex, ref Guid service, nint target);
+        [PreserveSig] int GetServiceForStream(uint streamIndex, ref Guid service, ref Guid iid, out nint target);
         [PreserveSig] int GetPresentationAttribute(uint streamIndex, ref Guid attribute, nint value);
     }
 }

@@ -59,6 +59,7 @@ public partial class MainWindow
             {
                 SettingsService.Save(proposed);
                 App.SetDataDirectory(destination); ApplySettings(proposed); _history = prepared.store;
+                _historyLoaded = true;
                 _historyEntries.Clear();
                 foreach (var entry in prepared.entries) _historyEntries.Add(entry);
                 _currentHistory = _historyEntries.FirstOrDefault(entry => entry.Id == currentId);
@@ -96,67 +97,85 @@ public partial class MainWindow
         var dpi = VisualTreeHelper.GetDpi(this);
         var dialog = new Window
         {
-            Title = "拾屏 精简版设置", Owner = this, Width = Math.Min(560, area.Width / dpi.DpiScaleX - 32),
+            Style = (Style)Application.Current.FindResource(typeof(Window)),
+            Title = "拾屏 精简版设置", Owner = this, Width = Math.Min(640, area.Width / dpi.DpiScaleX - 32),
             Height = Math.Min(860, area.Height / dpi.DpiScaleY - 32), ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Icon = AppIcon.WindowImage
         };
         _settingsWindow = dialog;
-        var grid = new Grid { Background = Brushes.White };
+        var grid = new Grid { Background = StudioUi.Brush("Canvas") };
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 16) };
+        var panel = new StackPanel { Margin = new Thickness(20, 20, 20, 4) };
+        StackPanel section = panel;
         var scroll = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         grid.Children.Add(scroll);
-        TextBlock Hint(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), FontSize = 12, Margin = new Thickness(0, 6, 0, 6) };
-        void Heading(string text) => panel.Children.Add(new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 10) });
-        void Divider() => panel.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 16) });
-
-        Heading("截图快捷键");
-        panel.Children.Add(Hint("点击下方后直接按快捷键，不需要输入名称。推荐 Alt+A，也可只用 PrintScreen。"));
-        var combination = new TextBox { Name = "ShortcutInput", Text = _hotkey?.CurrentCombination ?? _settings.Hotkey, IsReadOnly = true, FontSize = 18, MinHeight = 44, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = "点击，然后按下想使用的快捷键；Esc 放弃本次录入" };
-        panel.Children.Add(combination);
-        var hotkeyFeedback = Hint(""); panel.Children.Add(hotkeyFeedback);
-        var priority = new CheckBox { Name = "PriorityShortcutChoice", Content = "此快捷键优先使用拾屏 精简版", IsChecked = _settings.PreferScreenshotHotkey, Margin = new Thickness(0, 6, 0, 8) };
-        panel.Children.Add(priority);
-        void CheckHotkey()
+        TextBlock Hint(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("Muted"), FontSize = 13, LineHeight = 21, Margin = new Thickness(0, 6, 0, 8) };
+        void Heading(string text, string icon)
         {
-            if (!HotkeyService.TryNormalize(combination.Text, out _)) { hotkeyFeedback.Text = "请直接按下组合，例如 Alt+A 或 Ctrl+Alt+A。"; return; }
-            if (_hotkey == null) { hotkeyFeedback.Text = "快捷键格式正确。"; return; }
-            hotkeyFeedback.Text = _hotkey.Probe(combination.Text, out var error) ? "按键已记录，保存后生效。" : priority.IsChecked == true && error.Contains("占用") ? "其他软件登记了这个组合；优先模式可以沿用，无需增加按键。" : error;
+            section = new StackPanel();
+            var card = StudioUi.Panel(section, new Thickness(20)); card.Margin = new Thickness(0, 0, 0, 14);
+            panel.Children.Add(card);
+            var heading = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+            heading.Children.Add(new ToolGlyph { Kind = icon, Foreground = StudioUi.Brush("Accent"), Width = 22, Height = 22, Margin = new Thickness(0, 0, 10, 0) });
+            heading.Children.Add(new TextBlock { Text = text, FontSize = 17, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            section.Children.Add(heading);
+        }
+
+        Heading("截图快捷键", "capture");
+        section.Children.Add(Hint("点击下方后直接按键，例如 Alt+A 或 PrintScreen。"));
+        var combination = new TextBox { Name = "ShortcutInput", Text = _hotkey?.CurrentCombination ?? _settings.Hotkey, IsReadOnly = true, FontSize = 18, MinHeight = 44, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = "点击，然后按下想使用的快捷键；Esc 放弃本次录入" };
+        section.Children.Add(combination);
+        var hotkeyFeedback = Hint(""); hotkeyFeedback.Visibility = Visibility.Collapsed; section.Children.Add(hotkeyFeedback);
+        void SetHotkeyFeedback(string message)
+        {
+            hotkeyFeedback.Text = message;
+            hotkeyFeedback.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+        }
+        var priority = new CheckBox { Name = "PriorityShortcutChoice", Content = "此快捷键优先使用拾屏 精简版", IsChecked = _settings.PreferScreenshotHotkey, Margin = new Thickness(0, 6, 0, 8) };
+        section.Children.Add(priority);
+        void CheckHotkey(bool showSuccess = false)
+        {
+            if (!HotkeyService.TryNormalize(combination.Text, out _)) { SetHotkeyFeedback("请直接按下组合，例如 Alt+A 或 Ctrl+Alt+A。"); return; }
+            if (_hotkey == null) { SetHotkeyFeedback(""); return; }
+            SetHotkeyFeedback(_hotkey.Probe(combination.Text, out var error) ? showSuccess ? "当前组合可以使用。" : ""
+                : priority.IsChecked == true && error.Contains("占用") ? "其他软件登记了这个组合；优先模式可以沿用，无需增加按键。" : error);
         }
         var hotkeyActions = new StackPanel { Orientation = Orientation.Horizontal };
-        var check = new Button { Content = "检测占用" }; check.Click += (_, _) => CheckHotkey();
+        var check = new Button { Content = "检测占用" }; check.Click += (_, _) => CheckHotkey(true);
         var suggest = new Button { Name = "SuggestShortcutButton", Content = "推荐可用组合" };
+        StudioUi.Label(check, "check", "检测占用"); StudioUi.Label(suggest, "focus", "推荐可用组合");
         suggest.Click += (_, _) =>
         {
             var recommendation = _hotkey?.FindAvailableSuggestion();
-            if (recommendation == null) { hotkeyFeedback.Text = "暂未找到可用建议，可以输入其他组合检测。"; return; }
-            combination.Text = recommendation; CheckHotkey();
+            if (recommendation == null) { SetHotkeyFeedback("暂未找到可用建议，可以输入其他组合检测。"); return; }
+            combination.Text = recommendation; CheckHotkey(true);
         };
-        hotkeyActions.Children.Add(check); hotkeyActions.Children.Add(suggest); panel.Children.Add(hotkeyActions);
-        panel.Children.Add(Hint("优先模式只处理选定的截图组合，其他按键照常使用。建议使用 1–2 个按键，最多两个辅助键加一个主键。"));
+        hotkeyActions.Children.Add(check); hotkeyActions.Children.Add(suggest); section.Children.Add(hotkeyActions);
+        section.Children.Add(Hint("优先模式只接管这个截图组合，其他按键照常使用。"));
         if (!ElevationService.IsCurrentProcessElevated())
         {
             var elevationHint = Hint("游戏等以管理员身份运行的程序会拦截拾屏的快捷键（Windows 权限隔离），导致游戏内按键无反应；以管理员身份重启拾屏即可在其中使用。");
             elevationHint.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14));
-            panel.Children.Add(elevationHint);
+            section.Children.Add(elevationHint);
             var restartElevated = new Button { Name = "RestartElevatedButton", Content = "以管理员身份重启拾屏", ToolTip = "通过 Windows 授权后重启，游戏内的截图快捷键随即可用" };
+            StudioUi.Label(restartElevated, "settings", "以管理员身份重启拾屏");
             restartElevated.Click += (_, _) =>
             {
                 if (ElevationService.RestartElevated(out var elevationError)) { dialog.Close(); Quit(); }
-                else hotkeyFeedback.Text = elevationError;
+                else SetHotkeyFeedback(elevationError);
             };
-            panel.Children.Add(restartElevated);
+            section.Children.Add(restartElevated);
         }
-        else panel.Children.Add(Hint("当前已以管理员身份运行，管理员权限的游戏和软件内快捷键也可用。"));
+        else section.Children.Add(Hint("当前已以管理员身份运行，管理员权限的游戏和软件内快捷键也可用。"));
         var beforeRecording = combination.Text;
-        combination.GotKeyboardFocus += (_, _) => { beforeRecording = combination.Text; hotkeyFeedback.Text = "请按下想使用的快捷键…"; if (_hotkey != null && !_hotkey.BeginRecording(out var error)) hotkeyFeedback.Text = error; };
+        combination.GotKeyboardFocus += (_, _) => { beforeRecording = combination.Text; SetHotkeyFeedback("请按下想使用的快捷键…"); if (_hotkey != null && !_hotkey.BeginRecording(out var error)) SetHotkeyFeedback(error); };
         combination.LostKeyboardFocus += (_, _) => _hotkey?.EndRecording();
         void RecordKey(Key key, ModifierKeys modifiers)
         {
             if (key == Key.Escape) { combination.Text = beforeRecording; Keyboard.ClearFocus(); CheckHotkey(); return; }
             if (HotkeyService.TryFromKey(key, modifiers, out var recorded)) { combination.Text = recorded; CheckHotkey(); }
-            else hotkeyFeedback.Text = "请用 Alt+A、Ctrl+Alt+A，或 PrintScreen 等独立功能键；最多三个按键。";
+            else SetHotkeyFeedback("请用 Alt+A、Ctrl+Alt+A，或 PrintScreen 等独立功能键；最多三个按键。");
         }
         EventHandler<RecordedShortcut> onRecorded = (_, shortcut) => RecordKey(shortcut.Key, shortcut.Modifiers);
         if (_hotkey != null) _hotkey.Recorded += onRecorded;
@@ -165,7 +184,7 @@ public partial class MainWindow
             keyEvent.Handled = true;
             var key = keyEvent.Key == Key.System ? keyEvent.SystemKey : keyEvent.Key == Key.ImeProcessed ? keyEvent.ImeProcessedKey : keyEvent.Key;
             if (key == Key.Escape) { RecordKey(key, Keyboard.Modifiers); return; }
-            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) { hotkeyFeedback.Text = "辅助键已按下，再按一个主键。"; return; }
+            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) { SetHotkeyFeedback("辅助键已按下，再按一个主键。"); return; }
             RecordKey(key, Keyboard.Modifiers);
         };
         priority.Checked += (_, _) => CheckHotkey(); priority.Unchecked += (_, _) => CheckHotkey();
@@ -174,14 +193,14 @@ public partial class MainWindow
         combination.TextChanged += (_, _) => { hotkeyTimer.Stop(); hotkeyTimer.Start(); };
         var initialStartup = _settings.StartWithWindows;
         try { initialStartup = !App.IsTestMode && SettingsService.StartupEnabled(); }
-        catch { panel.Children.Add(Hint("暂时无法读取自启状态，保存时会再次检查。")); }
+        catch { section.Children.Add(Hint("暂时无法读取自启状态，保存时会再次检查。")); }
         var startup = new CheckBox { Content = "开机自动启动，并留在托盘", IsChecked = initialStartup };
-        panel.Children.Add(startup); Divider();
+        section.Children.Add(startup);
 
-        Heading("截图资料存放位置");
+        Heading("截图资料存放位置", "folder");
         var storage = new TextBox { Name = "StorageDirectoryInput", Text = App.DataDirectory, IsReadOnly = true, TextWrapping = TextWrapping.Wrap };
-        panel.Children.Add(storage);
-        var storageActions = new StackPanel { Orientation = Orientation.Horizontal };
+        section.Children.Add(storage);
+        var storageActions = new WrapPanel();
         var choose = new Button { Name = "ChooseStorageButton", Content = "选择文件夹" };
         choose.Click += (_, _) =>
         {
@@ -190,20 +209,22 @@ public partial class MainWindow
         };
         var open = new Button { Content = "打开当前文件夹" };
         var defaultFolder = new Button { Content = "恢复默认" }; defaultFolder.Click += (_, _) => storage.Text = App.DefaultDataDirectory;
-        storageActions.Children.Add(choose); storageActions.Children.Add(open); storageActions.Children.Add(defaultFolder); panel.Children.Add(storageActions);
-        panel.Children.Add(Hint("截图和标注保存在 history，GIF 动图保存在 recordings。修改并保存后一起迁移，原文件夹保留。"));
+        StudioUi.Label(choose, "folder", "选择文件夹"); StudioUi.Label(open, "folder", "打开当前文件夹"); StudioUi.Label(defaultFolder, "undo", "恢复默认");
+        storageActions.Children.Add(choose); storageActions.Children.Add(open); storageActions.Children.Add(defaultFolder); section.Children.Add(storageActions);
+        section.Children.Add(Hint("截图和标注保存在 history，GIF 动图保存在 recordings。修改并保存后一起迁移，原文件夹保留。"));
         var warning = Hint("默认资料位于软件安装文件夹内。卸载软件会同步删除该文件夹，导致资料丢失。重要资料建议另选文件夹。");
-        warning.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14)); panel.Children.Add(warning); Divider();
+        warning.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14)); section.Children.Add(warning);
 
-        Heading("发送到 AI 网页");
-        panel.Children.Add(Hint("无需安装扩展或配对。点击发送后，截图会先复制到剪贴板，再打开所选 AI 网页并尝试粘贴。若尚未登录或未找到输入框，登录后点击聊天输入框按 Ctrl+V 即可。内容只放入草稿，由你检查并发送。"));
+        Heading("发送到 AI 网页", "send");
+        section.Children.Add(Hint("无需安装扩展或配对。点击发送后，截图会先复制到剪贴板，再打开所选 AI 网页并尝试粘贴。若尚未登录或未找到输入框，登录后点击聊天输入框按 Ctrl+V 即可。内容只放入草稿，由你检查并发送。"));
 
-        var footer = new StackPanel { Margin = new Thickness(24, 8, 24, 20) };
-        var feedback = new TextBlock { Name = "SettingsFeedback", Foreground = new SolidColorBrush(Color.FromRgb(191, 89, 68)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+        var footer = new StackPanel { Margin = new Thickness(20, 10, 20, 20) };
+        var feedback = new TextBlock { Name = "SettingsFeedback", Foreground = new SolidColorBrush(Color.FromRgb(176, 69, 97)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
         footer.Children.Add(feedback);
         var footerActions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Name = "CloseSettingsButton", Content = "关闭" }; cancel.Click += (_, _) => dialog.Close();
         var save = new Button { Name = "SaveSettingsButton", Content = "保存设置", Style = (Style)FindResource("PrimaryButton") };
+        StudioUi.Label(cancel, "close", "关闭"); StudioUi.Label(save, "save", "保存设置");
         footerActions.Children.Add(cancel); footerActions.Children.Add(save); footer.Children.Add(footerActions);
         Grid.SetRow(footer, 1); grid.Children.Add(footer);
         var saving = false;
@@ -216,7 +237,7 @@ public partial class MainWindow
         save.Click += async (_, _) =>
         {
             if (saving) return;
-            feedback.Foreground = new SolidColorBrush(Color.FromRgb(191, 89, 68));
+            feedback.Foreground = new SolidColorBrush(Color.FromRgb(176, 69, 97));
             if (!HotkeyService.TryNormalize(combination.Text, out var normalized) || normalized.Count(character => character == '+') > 2) { feedback.Text = "请点击快捷键框，按下想使用的组合，最多三个按键。"; return; }
             bool oldStartup;
             try { oldStartup = !App.IsTestMode && SettingsService.StartupEnabled(); }

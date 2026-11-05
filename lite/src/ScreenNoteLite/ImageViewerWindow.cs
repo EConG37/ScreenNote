@@ -19,19 +19,22 @@ internal sealed class ImageViewerWindow : Window
     private double _startX, _startY;
     internal ImageViewerWindow(BitmapSource source)
     {
+        Style = (Style)Application.Current.FindResource(typeof(Window));
         _source = source; Title = "拾屏 精简版 · 放大查看"; Icon = AppIcon.WindowImage;
         Width = 1200; Height = 850; WindowState = WindowState.Maximized;
         _image = new Image { Source = source, Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        var root = new DockPanel { Background = new SolidColorBrush(Color.FromRgb(233, 235, 231)) };
-        var toolbar = new DockPanel { Background = Brushes.White, LastChildFill = false, Margin = new Thickness(0, 0, 0, 1) };
+        var root = new DockPanel { Background = StudioUi.Brush("Canvas"), Margin = new Thickness(16) };
+        var toolbar = new DockPanel { LastChildFill = false };
         var close = MakeButton("返回（Esc）", Close); DockPanel.SetDock(close, Dock.Right); toolbar.Children.Add(close);
-        toolbar.Children.Add(MakeButton("−", () => Zoom(_factor / 1.25))); toolbar.Children.Add(_scale);
-        toolbar.Children.Add(MakeButton("＋", () => Zoom(_factor * 1.25)));
+        toolbar.Children.Add(MakeButton("缩小", () => Zoom(_factor / 1.25), "minus")); toolbar.Children.Add(_scale);
+        toolbar.Children.Add(MakeButton("放大", () => Zoom(_factor * 1.25), "plus"));
         toolbar.Children.Add(MakeButton("适应窗口", () => { _fit = true; ResizeImage(); }));
         toolbar.Children.Add(MakeButton("原图 100%", () => Zoom(1)));
-        toolbar.Children.Add(new TextBlock { Text = "滚轮缩放 · 拖动查看", Foreground = Brushes.DimGray, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) });
-        DockPanel.SetDock(toolbar, Dock.Top); root.Children.Add(toolbar);
-        _scroll.Content = _image; root.Children.Add(_scroll); Content = root;
+        toolbar.Children.Add(new TextBlock { Text = "滚轮缩放 · 拖动查看", FontSize = 13, Foreground = StudioUi.Brush("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) });
+        var toolsPanel = StudioUi.Panel(toolbar, new Thickness(10, 2, 10, 2)); toolsPanel.Margin = new Thickness(0, 0, 0, 14);
+        DockPanel.SetDock(toolsPanel, Dock.Top); root.Children.Add(toolsPanel);
+        _scroll.Content = _image;
+        var imagePanel = StudioUi.Panel(_scroll, new Thickness(0)); imagePanel.ClipToBounds = true; root.Children.Add(imagePanel); Content = root;
         _scroll.SizeChanged += (_, _) => { if (_fit) ResizeImage(); };
         _scroll.PreviewMouseWheel += (_, e) => { Zoom(_factor * (e.Delta > 0 ? 1.25 : 0.8), e.GetPosition(_scroll)); e.Handled = true; };
         _scroll.PreviewMouseLeftButtonDown += (_, e) => { _pan = e.GetPosition(_scroll); _startX = _scroll.HorizontalOffset; _startY = _scroll.VerticalOffset; _scroll.CaptureMouse(); _scroll.Cursor = Cursors.SizeAll; e.Handled = true; };
@@ -41,9 +44,10 @@ internal sealed class ImageViewerWindow : Window
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } else if (e.Key is Key.Add or Key.OemPlus) Zoom(_factor * 1.25); else if (e.Key is Key.Subtract or Key.OemMinus) Zoom(_factor / 1.25); };
         Loaded += (_, _) => ResizeImage();
     }
-    private static Button MakeButton(string text, Action action)
+    private static Button MakeButton(string text, Action action, string? kind = null)
     {
-        var button = new Button { Content = text, Margin = new Thickness(5, 8, 5, 8), MinWidth = 36 };
+        var button = new Button { Margin = new Thickness(5, 8, 5, 8), MinWidth = 36, FontSize = 13 };
+        StudioUi.Label(button, kind ?? (text == "原图 100%" ? "ratio" : StudioUi.ActionIcon(text)), text);
         button.Click += (_, _) => action(); return button;
     }
     private void Zoom(double factor, Point? anchor = null)

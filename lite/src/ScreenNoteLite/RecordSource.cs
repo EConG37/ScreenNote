@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Drawing = System.Drawing;
 
@@ -50,13 +53,15 @@ internal sealed class RecordSource : IDisposable
             total += Delay(item);
         }
         Duration = total > TimeSpan.Zero ? total : TimeSpan.FromSeconds(_gif.Frames.Count / 10.0);
-        for (var index = 0; index < ThumbnailCount; index++)
+        Poster = _gif.Frames[0];
+        // One ascending pass: grab the frame covering each thumbnail slot.
+        var slot = 0;
+        for (var index = 0; index < _gif.Frames.Count && slot < ThumbnailCount; index++)
         {
-            var target = TimeSpan.FromTicks(Duration.Ticks * index / ThumbnailCount);
-            var image = ReadAt(target);
-            if (image != null) _thumbnails.Add(Scale(image, 132));
+            if (_gifTimes[index] < TimeSpan.FromTicks(Duration.Ticks * slot / ThumbnailCount)) continue;
+            _thumbnails.Add(Scale(_gif.Frames[index], 132));
+            slot++;
         }
-        Poster = ReadAt(TimeSpan.Zero) ?? (_thumbnails.Count > 0 ? _thumbnails[0] : null);
     }
 
     private void LoadVideo()
@@ -65,8 +70,30 @@ internal sealed class RecordSource : IDisposable
         Size = new Drawing.Size(_mp4!.Width, _mp4.Height);
         Duration = ReadMp4Duration(Path);
         if (Duration <= TimeSpan.Zero) Duration = TimeSpan.FromSeconds(1);
-        // Decoding every frame to build a filmstrip would be slow for a long clip; the first frame is enough to crop.
-        Poster = ReadAt(TimeSpan.Zero);
+        var first = _mp4.ReadAt(TimeSpan.Zero);
+        Poster = first == null ? null : Scale(first, 1280);
+    }
+
+    /// <summary>Loads the filmstrip frames. GIF strips are already in memory; video frames are
+    /// sampled on a background thread through a dedicated reader (COM wrappers are thread-bound).</summary>
+    internal Task<IReadOnlyList<BitmapSource>> LoadThumbnailsAsync()
+    {
+        if (Mode == RecordMode.Gif) return Task.FromResult<IReadOnlyList<BitmapSource>>(_thumbnails);
+        var path = Path;
+        var duration = Duration;
+        return Task.Run<IReadOnlyList<BitmapSource>>(() =>
+        {
+            var frames = new List<BitmapSource>();
+            using var reader = Mp4FrameReader.Open(path);
+            for (var slot = 0; slot < ThumbnailCount; slot++)
+            {
+                var target = TimeSpan.FromTicks(duration.Ticks * slot / ThumbnailCount);
+                var frame = reader.ReadAt(target);
+                if (frame == null) break;
+                frames.Add(Scale(frame, 132));
+            }
+            return frames;
+        });
     }
 
     private static TimeSpan ReadMp4Duration(string path)
@@ -74,34 +101,57 @@ internal sealed class RecordSource : IDisposable
         try
         {
             using var stream = File.OpenRead(path);
-            var head = new byte[8];
-            while (stream.Position + 8 <= stream.Length)
-            {
-                if (stream.Read(head, 0, 8) != 8) break;
-                var size = (long)((uint)head[0] << 24 | (uint)head[1] << 16 | (uint)head[2] << 8 | head[3]);
-                var isMvhd = head[4] == 'm' && head[5] == 'v' && head[6] == 'h' && head[7] == 'd';
-                if (isMvhd)
-                {
-                    var body = new byte[32];
-                    var read = stream.Read(body, 0, body.Length);
-                    if (read >= 20)
-                    {
-                        if (body[0] == 1 && read >= 32)
-                        {
-                            var scale = Bytes(body, 20, 4);
-                            var duration = ((ulong)Bytes(body, 24, 4) << 32) | Bytes(body, 28, 4);
-                            return scale > 0 ? TimeSpan.FromSeconds((double)duration / scale) : TimeSpan.Zero;
-                        }
-                        var scale0 = Bytes(body, 12, 4);
-                        var duration0 = Bytes(body, 16, 4);
-                        return scale0 > 0 ? TimeSpan.FromSeconds((double)duration0 / scale0) : TimeSpan.Zero;
-                    }
-                }
-                if (size < 8) break;
-                stream.Position += size - 8;
-            }
+            return ReadBoxDuration(stream, stream.Length);
         }
         catch { }
+        return TimeSpan.Zero;
+    }
+
+    // mvhd lives inside the moov container; walking only the top level never finds it.
+    private static TimeSpan ReadBoxDuration(Stream stream, long end)
+    {
+        var head = new byte[16];
+        while (stream.Position + 8 <= end)
+        {
+            var boxStart = stream.Position;
+            if (stream.Read(head, 0, 8) != 8) break;
+            var size = (long)((uint)head[0] << 24 | (uint)head[1] << 16 | (uint)head[2] << 8 | head[3]);
+            var headerBytes = 8;
+            if (size == 1)
+            {
+                if (stream.Read(head, 8, 8) != 8) break;
+                size = (long)(((ulong)head[8] << 56) | ((ulong)head[9] << 48) | ((ulong)head[10] << 40) | ((ulong)head[11] << 32)
+                    | ((ulong)head[12] << 24) | ((ulong)head[13] << 16) | ((ulong)head[14] << 8) | head[15]);
+                headerBytes = 16;
+            }
+            else if (size == 0) size = end - boxStart;
+            if (size < headerBytes) break;
+            var isMvhd = head[4] == 'm' && head[5] == 'v' && head[6] == 'h' && head[7] == 'd';
+            if (isMvhd)
+            {
+                var body = new byte[32];
+                var read = stream.Read(body, 0, body.Length);
+                if (read >= 20)
+                {
+                    if (body[0] == 1 && read >= 32)
+                    {
+                        var scale = Bytes(body, 20, 4);
+                        var duration = ((ulong)Bytes(body, 24, 4) << 32) | Bytes(body, 28, 4);
+                        return scale > 0 ? TimeSpan.FromSeconds((double)duration / scale) : TimeSpan.Zero;
+                    }
+                    var scale0 = Bytes(body, 12, 4);
+                    var duration0 = Bytes(body, 16, 4);
+                    return scale0 > 0 ? TimeSpan.FromSeconds((double)duration0 / scale0) : TimeSpan.Zero;
+                }
+                return TimeSpan.Zero;
+            }
+            if (head[4] == 'm' && head[5] == 'o' && head[6] == 'o' && head[7] == 'v')
+            {
+                var found = ReadBoxDuration(stream, boxStart + size);
+                if (found > TimeSpan.Zero) return found;
+            }
+            stream.Position = boxStart + size;
+        }
         return TimeSpan.Zero;
     }
 
@@ -126,15 +176,12 @@ internal sealed class RecordSource : IDisposable
         return TimeSpan.FromMilliseconds(100);
     }
 
-    private BitmapSource? ReadAt(TimeSpan time)
+    internal BitmapSource? PreviewGifFrame(TimeSpan time)
     {
-        BitmapSource? found = null;
-        Read(time, time + TimeSpan.FromMilliseconds(1), (image, _) =>
-        {
-            found = image;
-            return false;
-        });
-        return found;
+        if (_gif == null) return null;
+        var index = _gifTimes.BinarySearch(Clamp(time));
+        if (index < 0) index = ~index - 1;
+        return _gif.Frames[Math.Clamp(index, 0, _gif.Frames.Count - 1)];
     }
 
     /// <summary>Streams frames inside the range to the callback; return false to stop early.</summary>
@@ -148,9 +195,10 @@ internal sealed class RecordSource : IDisposable
             for (var index = 0; index < _gif.Frames.Count; index++)
             {
                 var time = _gifTimes[index];
-                if (time < from) continue;
+                var next = index + 1 < _gifTimes.Count ? _gifTimes[index + 1] : Duration;
+                if (next <= from) continue;
                 if (time >= to) return;
-                if (!onFrame(_gif.Frames[index], time - from)) return;
+                if (!onFrame(_gif.Frames[index], (time < from ? from : time) - from)) return;
             }
             return;
         }
@@ -169,7 +217,15 @@ internal sealed class RecordSource : IDisposable
         var height = image.PixelHeight;
         var scale = Math.Min(1.0, (double)maximumEdge / Math.Max(width, height));
         if (scale >= 1) return image;
-        var scaled = new TransformedBitmap(image, new System.Windows.Media.ScaleTransform(scale, scale));
+        // A TransformedBitmap retains its full-resolution source. Render a detached
+        // thumbnail so twelve filmstrip frames do not keep twelve screen-sized buffers.
+        var targetWidth = Math.Max(1, (int)Math.Round(width * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(height * scale));
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+            context.DrawImage(image, new Rect(0, 0, targetWidth, targetHeight));
+        var scaled = new RenderTargetBitmap(targetWidth, targetHeight, 96, 96, PixelFormats.Pbgra32);
+        scaled.Render(visual);
         scaled.Freeze();
         return scaled;
     }

@@ -75,10 +75,23 @@ public partial class MainWindow
         HistoryCount.Text = $"{_historyEntries.Count} 张截图 · 自动保存";
         EmptyHistoryPanel.Visibility = _historyEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+    private void EnsureHistoryLoaded()
+    {
+        if (_historyLoaded) return;
+        var entries = _history.LoadEntries();
+        _historyEntries.Clear();
+        foreach (var entry in entries) _historyEntries.Add(entry);
+        if (_currentHistory != null)
+            _currentHistory = _historyEntries.FirstOrDefault(entry => entry.Id == _currentHistory.Id) ?? _currentHistory;
+        _historyLoaded = true;
+        RefreshHistorySummary();
+    }
+
     internal void ShowHistory()
     {
         if (_changingStorage) return;
         if (!SaveCurrentHistory()) return;
+        EnsureHistoryLoaded();
         HistoryPanel.Visibility = Visibility.Visible; EditorPanel.Visibility = Visibility.Collapsed;
         ModeHint.Text = "截图历史"; Title = "拾屏 精简版 · 截图历史";
         WindowState = WindowState.Normal; Width = 1080; Height = 780; ConstrainToCurrentScreen();
@@ -202,7 +215,7 @@ public partial class MainWindow
     {
         if (HistorySendButton == null) return;
         var count = HistoryList.SelectedItems.Count;
-        HistorySelectionCount.Text = count == 0 ? "勾选图片后批量处理" : $"已选 {count} 张";
+        HistorySelectionCount.Text = count == 0 ? "未选择" : $"已选 {count} 张";
         RefreshHistoryActions();
     }
     private void RefreshHistoryActions()
@@ -211,6 +224,7 @@ public partial class MainWindow
         HistorySendButton.IsEnabled = available; HistoryExportButton.IsEnabled = available;
         HistoryDeleteButton.IsEnabled = available;
         CollageButton.IsEnabled = !_changingStorage && !_capturing;
+        ScrollCaptureButton.IsEnabled = !_changingStorage && !_capturing;
         RefreshPrimaryActions();
     }
     private void SelectAllHistory_Click(object sender, RoutedEventArgs e) => HistoryList.SelectAll();

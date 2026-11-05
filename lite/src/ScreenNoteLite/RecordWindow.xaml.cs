@@ -27,12 +27,12 @@ public partial class RecordWindow : Window
         if (video) RefreshAudio();
         Options = Build();
         Subtitle.Text = video
-            ? "视频用 Windows 自带的 H.264 编码，不需要下载额外组件。"
-            : "GIF 直接生成，不用再转码，录完就能发。";
+            ? "适合操作演示，可选择录制系统声音和麦克风。"
+            : "适合简短操作，录制后可裁剪并复制分享。";
         Hint.Text = video
-            ? "下一步：在屏幕上拖出要录制的区域。视频按原始像素录制，超出 1920 像素会自动缩小。"
-            : "下一步：在屏幕上拖出要录制的区域，松手后倒计时 3 秒开始。";
-        StartButton.Content = video ? "选择区域并录制视频" : "选择区域并录制 GIF";
+            ? "拖出录制区域，再在控制条点击「开始录制」。超过 1920 像素的选区会自动缩小。"
+            : "拖出录制区域，再在控制条点击「开始录制」。";
+        StudioUi.Label(StartButton, "capture", "选择录制区域");
     }
 
     private void RefreshAudio()

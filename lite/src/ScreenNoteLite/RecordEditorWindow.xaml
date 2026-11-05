@@ -1,145 +1,221 @@
 <Window x:Class="ScreenNote.RecordEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="拾屏 · 编辑录制" Width="1040" Height="700" MinWidth="900" MinHeight="600"
-        WindowStartupLocation="CenterOwner" Background="{StaticResource Canvas}"
-        PreviewKeyDown="Window_PreviewKeyDown">
-
+        xmlns:local="clr-namespace:ScreenNote"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="拾屏 · 编辑录制" Width="1200" Height="820" MinWidth="1000" MinHeight="700"
+        WindowStyle="None" ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Canvas}" Style="{StaticResource {x:Type Window}}" FontSize="14" PreviewKeyDown="Window_PreviewKeyDown">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="7" CornerRadius="22" GlassFrameThickness="0" NonClientFrameEdges="None" />
+  </shell:WindowChrome.WindowChrome>
   <Window.Resources>
-    <Style x:Key="SectionLabel" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource Muted}" />
-      <Setter Property="Margin" Value="0,0,0,8" />
+    <Style x:Key="EditorSmall" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="{StaticResource Muted}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
-    <Style x:Key="BodyText" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{StaticResource Muted}" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="LineHeight" Value="18" />
+    <Style x:Key="EditorNav" TargetType="RadioButton" BasedOn="{StaticResource StudioChoice}">
+      <Setter Property="Width" Value="78"/><Setter Property="Height" Value="88"/>
+      <Setter Property="Margin" Value="0,0,0,14"/><Setter Property="Padding" Value="8"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
-    <Style x:Key="ModeChoice" TargetType="RadioButton">
-      <Setter Property="Margin" Value="0,0,8,0" />
-      <Setter Property="Padding" Value="14,7" />
-      <Setter Property="Cursor" Value="Hand" />
+    <Style x:Key="EditorChoice" TargetType="RadioButton" BasedOn="{StaticResource StudioChoice}">
+      <Setter Property="Margin" Value="2,0"/><Setter Property="Padding" Value="11,8"/>
+      <Setter Property="MinHeight" Value="36"/>
+    </Style>
+    <Style x:Key="EditorToggle" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/><Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,0,10,0"/><Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Border x:Name="Plate" Background="#B8FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="12,8">
+            <StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="loop" Margin="0,0,8,0"/><ContentPresenter VerticalAlignment="Center"/></StackPanel>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Plate" Property="Background" Value="{StaticResource AccentSoft}"/><Setter Property="Foreground" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Plate" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Plate" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="EditorSound" TargetType="CheckBox" BasedOn="{StaticResource EditorToggle}">
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="CheckBox">
+          <Border x:Name="Plate" Background="#B8FFFFFF" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
+              <local:ToolGlyph x:Name="SoundIcon" Kind="volume" Margin="0,0,8,0"/><TextBlock Text="声音" VerticalAlignment="Center"/>
+              <Border x:Name="SwitchTrack" Width="32" Height="19" Margin="10,0,0,0" Background="{StaticResource Accent}" CornerRadius="10">
+                <Ellipse x:Name="SwitchDot" Width="13" Height="13" Fill="White" HorizontalAlignment="Right" Margin="3"/>
+              </Border>
+            </StackPanel>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True"><Setter TargetName="SoundIcon" Property="Kind" Value="muted"/><Setter TargetName="SwitchTrack" Property="Background" Value="#B8C2D9"/><Setter TargetName="SwitchDot" Property="HorizontalAlignment" Value="Left"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Plate" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Plate" Property="BorderBrush" Value="{StaticResource Accent}"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="EditorPlay" TargetType="Button" BasedOn="{StaticResource StudioToolButton}">
+      <Setter Property="Width" Value="46"/><Setter Property="Height" Value="46"/><Setter Property="Padding" Value="0"/>
+      <Setter Property="Foreground" Value="White"/><Setter Property="Margin" Value="0"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Grid>
+            <Ellipse x:Name="Disc" Stroke="#919BFF" StrokeThickness="1">
+              <Ellipse.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#737FFF" Offset="0"/><GradientStop Color="#4B55E9" Offset="1"/></LinearGradientBrush></Ellipse.Fill>
+            </Ellipse>
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White"/>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Disc" Property="Opacity" Value="0.84"/></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Disc" Property="Opacity" Value="0.7"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Disc" Property="Stroke" Value="{StaticResource Ink}"/><Setter TargetName="Disc" Property="StrokeThickness" Value="2"/></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="EditorPlaybackSlider" TargetType="Slider">
+      <Setter Property="Height" Value="16"/><Setter Property="Minimum" Value="0"/><Setter Property="Maximum" Value="1"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <Grid Background="Transparent">
+            <Border Height="2" VerticalAlignment="Center" Background="#CCD4E8" CornerRadius="1" Margin="5,0"/>
+            <Track x:Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}" IsDirectionReversed="False">
+              <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+              <Track.Thumb><Thumb Width="10" Height="10"><Thumb.Template><ControlTemplate TargetType="Thumb"><Ellipse Fill="{StaticResource Accent}" Stroke="White" StrokeThickness="1"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+              <Track.IncreaseRepeatButton><RepeatButton Command="{x:Static Slider.IncreaseLarge}" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+            </Track>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style x:Key="EditorTime" TargetType="Border">
+      <Setter Property="Background" Value="#BEFFFFFF"/><Setter Property="BorderBrush" Value="{StaticResource Line}"/><Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="9"/><Setter Property="Padding" Value="10,7"/><Setter Property="Margin" Value="7,0,11,0"/>
     </Style>
   </Window.Resources>
 
-  <Grid Margin="24,18,24,20" Background="{StaticResource Canvas}">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
-
-    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-      <StackPanel>
-        <TextBlock Text="编辑录制" FontSize="17" FontWeight="SemiBold" />
-        <TextBlock x:Name="Subtitle" Style="{StaticResource BodyText}" Margin="0,4,0,0" />
-      </StackPanel>
-    </StackPanel>
-
-    <Grid Grid.Row="1" Margin="0,16,0,0">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="300" />
-      </Grid.ColumnDefinitions>
-
-      <Border Background="#1E211D" CornerRadius="12" ClipToBounds="True">
-        <Grid x:Name="Stage" SizeChanged="Stage_SizeChanged">
-          <Image x:Name="PreviewImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" />
-          <Canvas x:Name="Overlay" Background="Transparent"
-                  MouseLeftButtonDown="Overlay_MouseLeftButtonDown"
-                  MouseMove="Overlay_MouseMove"
-                  MouseLeftButtonUp="Overlay_MouseLeftButtonUp"
-                  Cursor="Cross" />
+  <Border Margin="7" CornerRadius="22" BorderBrush="#EFFFFFFF" BorderThickness="1" Background="#52FFFFFF">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="60"/><RowDefinition Height="*"/><RowDefinition Height="26"/></Grid.RowDefinitions>
+      <Grid Background="Transparent" MouseLeftButtonDown="Titlebar_MouseLeftButtonDown" Margin="18,0,12,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Image Source="assets/app.png" Width="29" Height="29" Margin="0,0,10,0"/>
+          <TextBlock Text="拾屏" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          <Border Width="1" Height="21" Background="#BCC7DF" Margin="22,0"/>
+          <TextBlock Text="编辑录制" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </StackPanel>
+        <TextBlock x:Name="Subtitle" Grid.Column="1" Style="{StaticResource EditorSmall}" Margin="24,0,20,0" TextTrimming="CharacterEllipsis"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Style="{StaticResource StudioToolButton}" Width="36" Height="34" Padding="7" Margin="1" Click="Minimize_Click" ToolTip="最小化" AutomationProperties.Name="最小化"><local:ToolGlyph Kind="minus"/></Button>
+          <Button Style="{StaticResource StudioToolButton}" Width="36" Height="34" Padding="7" Margin="1" Click="Maximize_Click" ToolTip="最大化或还原" AutomationProperties.Name="最大化或还原"><local:ToolGlyph Kind="rect" Width="16" Height="16"/></Button>
+          <Button Style="{StaticResource StudioToolButton}" Width="36" Height="34" Padding="7" Margin="1" Click="Cancel_Click" ToolTip="关闭" AutomationProperties.Name="关闭"><local:ToolGlyph Kind="close"/></Button>
+        </StackPanel>
+      </Grid>
+      <Border Height="1" VerticalAlignment="Bottom" Grid.Row="0" Background="#DFFFFFFF" Margin="15,0"/>
+      <Grid Grid.Row="1" Margin="14,6,14,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <StackPanel Margin="0,22,14,0">
+          <RadioButton x:Name="PictureNav" Style="{StaticResource EditorNav}" GroupName="EditorSection" IsChecked="True" Checked="PictureNav_Checked">
+            <StackPanel><local:ToolGlyph Kind="crop" Width="29" Height="29" HorizontalAlignment="Center" Margin="0,0,0,8"/><TextBlock Text="画面" HorizontalAlignment="Center" FontWeight="SemiBold"/></StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="SegmentNav" Style="{StaticResource EditorNav}" GroupName="EditorSection" Checked="SegmentNav_Checked">
+            <StackPanel><local:ToolGlyph Kind="trim" Width="29" Height="29" HorizontalAlignment="Center" Margin="0,0,0,8"/><TextBlock Text="片段" HorizontalAlignment="Center" FontWeight="SemiBold"/></StackPanel>
+          </RadioButton>
+          <RadioButton x:Name="OutputNav" Style="{StaticResource EditorNav}" GroupName="EditorSection" Checked="OutputNav_Checked">
+            <StackPanel><local:ToolGlyph Kind="import" Width="29" Height="29" HorizontalAlignment="Center" Margin="0,0,0,8"/><TextBlock Text="输出" HorizontalAlignment="Center" FontWeight="SemiBold"/></StackPanel>
+          </RadioButton>
+          <Button Style="{StaticResource StudioToolButton}" Margin="5,20,5,0" Padding="8" Click="Cancel_Click" ToolTip="返回工作台"><StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="back" Width="17" Height="17" Margin="0,0,6,0"/><TextBlock Text="返回" FontSize="13"/></StackPanel></Button>
+        </StackPanel>
+        <Grid Grid.Column="1">
+          <Grid.RowDefinitions><RowDefinition Height="*" MinHeight="190"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Grid>
+            <Border Background="#C5CFDF" CornerRadius="22" BorderBrush="#E3FFFFFF" BorderThickness="1">
+              <Grid x:Name="Stage" SizeChanged="Stage_SizeChanged" Margin="1">
+                <MediaElement x:Name="VideoPreview" LoadedBehavior="Manual" UnloadedBehavior="Manual" ScrubbingEnabled="True" Stretch="Fill" Volume="0.7" Visibility="Collapsed" MediaOpened="VideoPreview_Opened" MediaEnded="VideoPreview_Ended" MediaFailed="VideoPreview_Failed"/>
+                <Image x:Name="PreviewImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <Canvas x:Name="Overlay" Background="Transparent" MouseLeftButtonDown="Overlay_MouseLeftButtonDown" MouseMove="Overlay_MouseMove" MouseLeftButtonUp="Overlay_MouseLeftButtonUp" Cursor="Cross"/>
+              </Grid>
+            </Border>
+            <Border x:Name="CropTools" Style="{StaticResource StudioFloatingPanel}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="12,15,12,0" Padding="9,7" CornerRadius="18">
+              <StackPanel Orientation="Horizontal">
+                <Button x:Name="CropButton" Style="{StaticResource StudioToolButton}" Click="ResetCrop_Click" Padding="11,8" Margin="0" ToolTip="重新框选画面"><StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="crop" Margin="0,0,7,0"/><TextBlock Text="裁剪"/></StackPanel></Button>
+                <Border Width="1" Background="#BCC7DF" Margin="10,5"/>
+                <RadioButton x:Name="RatioOriginal" GroupName="CropRatio" Content="原始" Style="{StaticResource EditorChoice}" IsChecked="True" Checked="RatioOriginal_Checked"/>
+                <RadioButton x:Name="RatioWide" GroupName="CropRatio" Style="{StaticResource EditorChoice}" Checked="RatioWide_Checked"><StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="ratio" Margin="0,0,7,0"/><TextBlock Text="16:9"/></StackPanel></RadioButton>
+                <RadioButton x:Name="RatioSquare" GroupName="CropRatio" Style="{StaticResource EditorChoice}" Checked="RatioSquare_Checked"><StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="rect" Width="17" Height="17" Margin="0,0,7,0"/><TextBlock Text="1:1"/></StackPanel></RadioButton>
+              </StackPanel>
+            </Border>
+          </Grid>
+          <Border Grid.Row="1" Style="{StaticResource StudioPanel}" CornerRadius="22" Padding="18,13,18,15" Margin="0,12,0,0">
+            <Grid x:Name="PlaybackControls">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="64"/><RowDefinition Height="18"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Button x:Name="PlayPauseButton" Style="{StaticResource EditorPlay}" Click="PlayPause_Click" ToolTip="播放 · 空格" AutomationProperties.Name="播放"><local:ToolGlyph x:Name="PlayPauseGlyph" Kind="play" Width="24" Height="24" Foreground="White"/></Button>
+                <TextBlock x:Name="PlaybackTimeText" Grid.Column="1" Text="0:00.0 / 0:00.0" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" Margin="16,0,10,0"/>
+                <Button Grid.Column="2" Style="{StaticResource StudioToolButton}" Click="RestartPreview_Click" ToolTip="回到选段开头" AutomationProperties.Name="回到选段开头" Padding="7" Width="32" Height="32" Margin="0,0,14,0"><local:ToolGlyph Kind="back" Width="17" Height="17"/></Button>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                  <CheckBox x:Name="LoopPreview" Style="{StaticResource EditorToggle}" IsChecked="True" Content="循环" ToolTip="循环播放所选片段"/>
+                  <CheckBox x:Name="MutePreview" Style="{StaticResource EditorSound}" Checked="MutePreview_Changed" Unchecked="MutePreview_Changed" ToolTip="开关预览声音，不改变导出文件" AutomationProperties.Name="预览静音"/>
+                </StackPanel>
+                <TextBlock x:Name="CropText" Grid.Column="4" Style="{StaticResource EditorSmall}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" Margin="12,0,0,0"/>
+              </Grid>
+              <Grid Grid.Row="1" SizeChanged="Timeline_SizeChanged" ClipToBounds="True">
+                <Border Background="#CED8E8" CornerRadius="10"/>
+                <StackPanel x:Name="FilmStrip" Orientation="Horizontal" ClipToBounds="True" IsHitTestVisible="False"/>
+                <Canvas x:Name="TrimCanvas" ClipToBounds="True" Background="Transparent" MouseLeftButtonDown="Trim_MouseLeftButtonDown" MouseMove="Trim_MouseMove" MouseLeftButtonUp="Trim_MouseLeftButtonUp" ToolTip="拖动两端选取时长，拖动中间平移片段"/>
+              </Grid>
+              <Slider x:Name="PlaybackSlider" Grid.Row="2" Style="{StaticResource EditorPlaybackSlider}" SmallChange="0.1" LargeChange="1" IsMoveToPointEnabled="True" ValueChanged="PlaybackSlider_ValueChanged" PreviewMouseLeftButtonDown="PlaybackSlider_MouseDown" PreviewMouseLeftButtonUp="PlaybackSlider_MouseUp" ToolTip="播放进度" AutomationProperties.Name="播放进度"/>
+              <Grid Grid.Row="3" Margin="0,7,0,10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <local:ToolGlyph Kind="trim" Margin="0,0,8,0" Width="18" Height="18"/>
+                  <TextBlock Text="开始" Style="{StaticResource EditorSmall}"/>
+                  <Border Style="{StaticResource EditorTime}"><TextBlock x:Name="StartText" FontSize="13" VerticalAlignment="Center"/></Border>
+                  <TextBlock Text="结束" Style="{StaticResource EditorSmall}"/>
+                  <Border Style="{StaticResource EditorTime}"><TextBlock x:Name="EndText" FontSize="13" VerticalAlignment="Center"/></Border>
+                  <Border CornerRadius="9" Background="{StaticResource AccentSoft}" Padding="10,7"><TextBlock x:Name="KeepText" Foreground="{StaticResource Accent}" FontSize="13" FontWeight="SemiBold"/></Border>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                  <Button x:Name="SaveAsButton" Content="另存为" Style="{StaticResource StudioToolButton}" Click="SaveAs_Click" Padding="16,10" Margin="8,0,8,0"/>
+                  <Button x:Name="SaveButton" Style="{StaticResource PrimaryButton}" Click="Save_Click" Padding="20,11" Margin="0" ToolTip="导出文件并复制到剪贴板"><StackPanel Orientation="Horizontal"><local:ToolGlyph Kind="copy" Foreground="White" Margin="0,0,9,0"/><TextBlock Text="导出并复制" FontWeight="SemiBold"/></StackPanel></Button>
+                </StackPanel>
+              </Grid>
+              <Grid Grid.Row="4">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,13,0">
+                  <TextBlock Text="输出" Style="{StaticResource EditorSmall}" Margin="0,0,8,0"/>
+                  <RadioButton x:Name="VideoChoice" Content="MP4" GroupName="Format" Style="{StaticResource EditorChoice}" Checked="Format_Checked"/>
+                  <RadioButton x:Name="GifChoice" Content="GIF" GroupName="Format" Style="{StaticResource EditorChoice}" Checked="Format_Checked"/>
+                </StackPanel>
+                <StackPanel x:Name="GifPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                  <TextBlock Text="帧率" Style="{StaticResource EditorSmall}" Margin="0,0,6,0"/>
+                  <ComboBox x:Name="GifFps" Width="104" SelectionChanged="Settings_Changed" AutomationProperties.Name="GIF 帧率"><ComboBoxItem Content="10 帧/秒" Tag="10"/><ComboBoxItem Content="15 帧/秒" Tag="15" IsSelected="True"/><ComboBoxItem Content="20 帧/秒" Tag="20"/></ComboBox>
+                  <TextBlock Text="体积" Style="{StaticResource EditorSmall}" Margin="12,0,6,0"/>
+                  <ComboBox x:Name="GifTarget" Width="159" SelectionChanged="Settings_Changed" AutomationProperties.Name="GIF 体积目标"><ComboBoxItem Content="≤ 10 MB · 微信" Tag="10485760" IsSelected="True"/><ComboBoxItem Content="不压缩" Tag="0"/></ComboBox>
+                </StackPanel>
+                <StackPanel x:Name="VideoPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                  <TextBlock Text="帧率" Style="{StaticResource EditorSmall}" Margin="0,0,6,0"/>
+                  <ComboBox x:Name="VideoFps" Width="112" SelectionChanged="Settings_Changed" AutomationProperties.Name="MP4 帧率"><ComboBoxItem Content="24 帧/秒" Tag="24"/><ComboBoxItem Content="30 帧/秒" Tag="30" IsSelected="True"/></ComboBox>
+                </StackPanel>
+                <TextBlock x:Name="EstimateText" Grid.Column="2" Style="{StaticResource EditorSmall}" Margin="16,0,0,0" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+              </Grid>
+              <Slider x:Name="StartSlider" Visibility="Collapsed" Minimum="0" Maximum="60" IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged"/>
+              <Slider x:Name="EndSlider" Visibility="Collapsed" Minimum="0" Maximum="60" IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged"/>
+            </Grid>
+          </Border>
         </Grid>
-      </Border>
-
-      <StackPanel Grid.Column="1" Margin="20,0,10,0">
-        <TextBlock Text="裁剪画面" Style="{StaticResource SectionLabel}" />
-        <TextBlock x:Name="CropText" Style="{StaticResource BodyText}" />
-        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-          <Button Content="重新框选" Click="ResetCrop_Click" Margin="0,0,8,0" Padding="12,5" />
-          <Button Content="保留全画面" Click="ClearCrop_Click" Padding="12,5" />
-        </StackPanel>
-
-        <Border Height="1" Background="{StaticResource Line}" Margin="0,18,0,16" />
-
-        <TextBlock Text="保留时长" Style="{StaticResource SectionLabel}" />
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock Text="开始" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-          <TextBlock x:Name="StartText" Grid.Column="1" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-        </Grid>
-        <Slider x:Name="StartSlider" Minimum="0" Maximum="60" Margin="0,2,0,0"
-                IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged" />
-        <Grid Margin="0,8,0,0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBlock Text="结束" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-          <TextBlock x:Name="EndText" Grid.Column="1" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-        </Grid>
-        <Slider x:Name="EndSlider" Minimum="0" Maximum="60" Margin="0,2,0,0"
-                IsSnapToTickEnabled="False" ValueChanged="Trim_ValueChanged" />
-        <TextBlock x:Name="KeepText" Style="{StaticResource BodyText}" Margin="0,8,0,0" />
-        <StackPanel x:Name="FilmStrip" Orientation="Horizontal" Margin="0,10,0,0" ClipToBounds="True" />
-
-        <Border Height="1" Background="{StaticResource Line}" Margin="0,18,0,16" />
-
-        <TextBlock Text="输出" Style="{StaticResource SectionLabel}" />
-        <StackPanel Orientation="Horizontal">
-          <RadioButton x:Name="GifChoice" Content="GIF" GroupName="Format" Style="{StaticResource ModeChoice}"
-                       Checked="Format_Checked" />
-          <RadioButton x:Name="VideoChoice" Content="视频 MP4" GroupName="Format" Style="{StaticResource ModeChoice}"
-                       Checked="Format_Checked" />
-        </StackPanel>
-        <StackPanel x:Name="GifPanel" Margin="0,12,0,0">
-          <StackPanel Orientation="Horizontal">
-            <TextBlock Text="帧率" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
-            <ComboBox x:Name="GifFps" Width="96" SelectionChanged="Settings_Changed">
-              <ComboBoxItem Content="10 帧/秒" Tag="10" />
-              <ComboBoxItem Content="15 帧/秒" Tag="15" IsSelected="True" />
-              <ComboBoxItem Content="20 帧/秒" Tag="20" />
-            </ComboBox>
-          </StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-            <TextBlock Text="大小" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
-            <ComboBox x:Name="GifTarget" Width="168" SelectionChanged="Settings_Changed">
-              <ComboBoxItem Content="微信直接发送（≤10 MB）" Tag="10485760" IsSelected="True" />
-              <ComboBoxItem Content="不压缩" Tag="0" />
-            </ComboBox>
-          </StackPanel>
-        </StackPanel>
-        <StackPanel x:Name="VideoPanel" Margin="0,12,0,0" Visibility="Collapsed">
-          <StackPanel Orientation="Horizontal">
-            <TextBlock Text="帧率" Style="{StaticResource BodyText}" VerticalAlignment="Center" Width="52" />
-            <ComboBox x:Name="VideoFps" Width="96" SelectionChanged="Settings_Changed">
-              <ComboBoxItem Content="24 帧/秒" Tag="24" />
-              <ComboBoxItem Content="30 帧/秒" Tag="30" IsSelected="True" />
-            </ComboBox>
-          </StackPanel>
-        </StackPanel>
-        <TextBlock x:Name="EstimateText" Style="{StaticResource BodyText}" Margin="0,10,0,0" />
-      </StackPanel>
+      </Grid>
+      <TextBlock x:Name="StatusText" Grid.Row="2" Style="{StaticResource EditorSmall}" Margin="112,0,20,0" TextTrimming="CharacterEllipsis"/>
     </Grid>
-
-    <Grid Grid.Row="2" Margin="0,16,0,0">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-      <TextBlock x:Name="StatusText" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-      <StackPanel Grid.Column="1" Orientation="Horizontal">
-        <Button Content="取消" Click="Cancel_Click" Padding="18,8" Margin="0,0,8,0" />
-        <Button x:Name="SaveButton" Content="保存" Style="{StaticResource PrimaryButton}"
-                Click="Save_Click" Padding="22,9" />
-      </StackPanel>
-    </Grid>
-  </Grid>
+  </Border>
 </Window>

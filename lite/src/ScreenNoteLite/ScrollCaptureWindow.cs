@@ -30,22 +30,29 @@ internal sealed class ScrollCaptureWindow : Window
 
     internal ScrollCaptureWindow(Drawing.Rectangle region)
     {
+        Style = (Style)Application.Current.FindResource(typeof(Window));
         _region = region;
-        Title = "拾屏 精简版 · 滚动截图"; Icon = AppIcon.WindowImage; Width = 430;
+        Title = "拾屏 精简版 · 滚动截图"; Icon = AppIcon.WindowImage; Width = 510;
         SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize; Topmost = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Background = StudioUi.Brush("Canvas");
         var panel = new StackPanel();
-        panel.Children.Add(new TextBlock { Text = "向下滚动，拼成一张长图", FontSize = 20, FontWeight = FontWeights.SemiBold });
+        var heading = new StackPanel { Orientation = Orientation.Horizontal };
+        heading.Children.Add(new ToolGlyph { Kind = "scroll", Width = 26, Height = 26, Foreground = StudioUi.Brush("Accent"), Margin = new Thickness(0, 0, 12, 0) });
+        heading.Children.Add(new TextBlock { Text = "向下滚动，拼成一张长图", FontSize = 20, FontWeight = FontWeights.SemiBold });
+        panel.Children.Add(heading);
+        _status.Foreground = StudioUi.Brush("Muted"); _status.FontSize = 13;
         _status.Text = $"选区 {_region.Width} × {_region.Height}\n点击开始后，在选区内向下滚动。快速滚轮会自动分成小步，采集后再继续。\n尽量只框选正文，避开悬浮按钮和固定页脚。";
         panel.Children.Add(_status);
         var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Content = "取消", Margin = new Thickness(0, 0, 8, 0) };
+        StudioUi.Label(cancel, "close", "取消"); StudioUi.Label(_start, "scroll", "开始采集"); StudioUi.Label(_finish, "copy", "完成并复制");
         cancel.Click += (_, _) => Close();
         _start.Click += async (_, _) => await StartAsync();
         _finish.Click += async (_, _) => await FinishAsync();
         if (TryFindResource("PrimaryButton") is Style style) _finish.Style = style;
         buttons.Children.Add(cancel); buttons.Children.Add(_start); buttons.Children.Add(_finish); panel.Children.Add(buttons);
-        Content = new Border { Background = Brushes.White, Padding = new Thickness(24), Child = panel };
+        var surface = StudioUi.Panel(panel, new Thickness(24)); surface.Margin = new Thickness(16); Content = surface;
         SourceInitialized += (_, _) => _excluded = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) && SetWindowDisplayAffinity(new WindowInteropHelper(this).Handle, 0x11);
         _timer.Tick += async (_, _) =>
         {

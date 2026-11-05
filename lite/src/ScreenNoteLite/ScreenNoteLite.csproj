@@ -10,7 +10,7 @@
     <ApplicationIcon>assets/app.ico</ApplicationIcon>
     <AssemblyName>ScreenNoteLite</AssemblyName>
     <RootNamespace>ScreenNote</RootNamespace>
-    <Version>1.2.0</Version>
+    <Version>1.2.7</Version>
     <Product>拾屏 精简版</Product>
     <AssemblyTitle>拾屏 精简版</AssemblyTitle>
     <Description>截图、标注、发送给 AI、历史、GIF、视频录制、拼图与滚动截图</Description>

@@ -3,7 +3,8 @@ param(
     [string]$OutputDirectory = '',
     [string]$CompilerPath = '',
     [string]$RuntimeVersion = '10.0.14',
-    [switch]$SkipPublish
+    [switch]$SkipPublish,
+    [switch]$FrameworkDependent
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,11 +13,12 @@ $repoRoot = Split-Path -Parent $projectRoot
 $projectFile = Join-Path $projectRoot 'src/ScreenNoteLite/ScreenNoteLite.csproj'
 [xml]$project = Get-Content -LiteralPath $projectFile -Raw
 $version = [string]@($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
-$buildRoot = Join-Path $projectRoot ('.build/installer/' + $version)
+$flavor = if ($FrameworkDependent) { '-light' } else { '' }
+$buildRoot = Join-Path $projectRoot ('.build/installer/' + $version + $flavor)
 $payload = Join-Path $buildRoot 'payload'
 $repoToolRoot = Join-Path $repoRoot '.build/installer-tools'
 $toolRoot = if (Test-Path -LiteralPath (Join-Path $repoToolRoot 'InnoSetup/ISCC.exe') -PathType Leaf) { $repoToolRoot } else { Join-Path $projectRoot '.build/installer-tools' }
-$artifactRoot = if (Test-Path -LiteralPath (Join-Path $repoRoot 'src/ScreenNote/ScreenNote.csproj') -PathType Leaf) { Join-Path $repoRoot 'output/lite' } else { Join-Path $projectRoot 'output' }
+$artifactRoot = Join-Path $projectRoot ('releases/' + $version)
 $outputRoot = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { $artifactRoot }
 if ($outputRoot.StartsWith($payload + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or $outputRoot -eq $payload) {
     throw 'The installer output must be outside its payload directory.'
@@ -58,17 +60,25 @@ if (-not $SkipPublish) {
     $env:APPDATA = Join-Path $projectRoot '.build/appdata'
     $env:DOTNET_NOLOGO = '1'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-    if (Test-Path -LiteralPath $payload) { Remove-Item -LiteralPath $payload -Recurse -Force }
-    & dotnet publish $projectFile -c Release -r win-x64 --self-contained true --source https://api.nuget.org/v3/index.json ('-p:RuntimeFrameworkVersion=' + $RuntimeVersion) -p:DebugType=None -p:DebugSymbols=false -o $payload
+    if (Test-Path -LiteralPath $payload) {
+        $resolvedPayload = [IO.Path]::GetFullPath($payload)
+        if (-not $resolvedPayload.StartsWith([IO.Path]::GetFullPath($buildRoot) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected payload path.' }
+        Remove-Item -LiteralPath $resolvedPayload -Recurse -Force
+    }
+    $publishArguments = @('publish', $projectFile, '-c', 'Release', '-r', 'win-x64', '--self-contained', (-not $FrameworkDependent).ToString().ToLowerInvariant(), '--source', 'https://api.nuget.org/v3/index.json', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $payload)
+    if (-not $FrameworkDependent) { $publishArguments += ('-p:RuntimeFrameworkVersion=' + $RuntimeVersion) }
+    & dotnet @publishArguments
     if ($LASTEXITCODE -ne 0) { throw 'Self-contained Windows publish failed.' }
 }
 
 # Drop localized framework resources other than Chinese; the lite edition ships no Python runtime.
 $trimmed = New-Object System.Collections.Generic.List[string]
 $trimmedBytes = [long]0
+$payloadBytesBeforeTrim = (Get-ChildItem -LiteralPath $payload -Recurse -File | Measure-Object Length -Sum).Sum
 function Remove-PayloadItem([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return }
     $item = Get-Item -LiteralPath $Path -Force
+    if (-not $item.FullName.StartsWith([IO.Path]::GetFullPath($payload) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Refusing to remove a file outside the payload.' }
     $bytes = [long]0
     if ($item.PSIsContainer) {
         $sum = (@(Get-ChildItem -LiteralPath $Path -File -Recurse -Force -ErrorAction SilentlyContinue) | Measure-Object -Property Length -Sum).Sum
@@ -87,17 +97,28 @@ foreach ($cultureDir in @(Get-ChildItem -LiteralPath $payload -Directory -Force 
     if (@(Get-ChildItem -LiteralPath $cultureDir.FullName -File -Force | Where-Object { $_.Name -notlike '*.resources.dll' }).Count -ne 0) { continue }
     Remove-PayloadItem $cultureDir.FullName
 }
+# These are development/debugging tools, not runtime dependencies of the app.
+# Do not enable IL trimming: WPF relies on reflection and does not support it.
+$developmentFiles = @('System.Windows.Forms.Design.dll', 'System.Windows.Forms.Design.Editors.dll', 'System.Drawing.Design.dll', 'Microsoft.DiaSymReader.Native.amd64.dll', 'mscordbi.dll', 'createdump.exe', 'mscordaccore.dll')
+foreach ($name in $developmentFiles) { Remove-PayloadItem (Join-Path $payload $name) }
+Get-ChildItem -LiteralPath $payload -Filter 'mscordaccore_*.dll' -File | ForEach-Object { Remove-PayloadItem $_.FullName }
+foreach ($culture in $keptCultures) {
+    foreach ($name in @('System.Windows.Forms.Design.resources.dll', 'System.Windows.Forms.Design.Editors.resources.dll')) { Remove-PayloadItem (Join-Path $payload ($culture + '/' + $name)) }
+}
 if ($trimmed.Count -gt 0) {
     $trimmed | Set-Content -LiteralPath (Join-Path $buildRoot 'payload-trim.txt') -Encoding UTF8
 }
 
-foreach ($file in @('ScreenNoteLite.exe', 'ScreenNoteLite.dll', 'coreclr.dll', 'hostfxr.dll', 'PresentationFramework.dll')) {
+$requiredFiles = @('ScreenNoteLite.exe', 'ScreenNoteLite.dll')
+if (-not $FrameworkDependent) { $requiredFiles += @('coreclr.dll', 'hostfxr.dll', 'PresentationFramework.dll') }
+foreach ($file in $requiredFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $payload $file) -PathType Leaf)) { throw ('Missing installer payload: ' + $file) }
 }
 $runtime = Get-Content -LiteralPath (Join-Path $payload 'ScreenNoteLite.runtimeconfig.json') -Raw | ConvertFrom-Json
-if ($runtime.runtimeOptions.frameworks -or $runtime.runtimeOptions.framework -or $runtime.runtimeOptions.includedFrameworks.Count -ne 2 -or @($runtime.runtimeOptions.includedFrameworks | Where-Object version -ne $RuntimeVersion).Count -ne 0) {
+if (-not $FrameworkDependent -and ($runtime.runtimeOptions.frameworks -or $runtime.runtimeOptions.framework -or $runtime.runtimeOptions.includedFrameworks.Count -ne 2 -or @($runtime.runtimeOptions.includedFrameworks | Where-Object version -ne $RuntimeVersion).Count -ne 0)) {
     throw 'The payload does not contain the requested desktop runtime.'
 }
+if ($FrameworkDependent -and @($runtime.runtimeOptions.frameworks | Where-Object { $_.name -eq 'Microsoft.WindowsDesktop.App' -and $_.version -like '10.*' }).Count -ne 1) { throw 'The light edition must target the .NET 10 Desktop Runtime.' }
 $productVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload 'ScreenNoteLite.exe')).ProductVersion
 if ($productVersion -ne $version -and -not $productVersion.StartsWith($version + '+', [StringComparison]::Ordinal)) { throw 'Installer and app versions differ.' }
 
@@ -130,12 +151,38 @@ $manifest = @($files | ForEach-Object {
 $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $buildRoot 'payload-manifest.json') -Encoding UTF8
 
 $compileLog = Join-Path $buildRoot 'compiler.log'
-& $CompilerPath ('/DAppVersion=' + $version) ('/DPayloadDir=' + $payload) ('/DChineseMessages=' + $chineseMessages) ('/O' + $outputRoot) (Join-Path $projectRoot 'installer/ScreenNoteLite.iss') *> $compileLog
+# Remove only the runtime files owned by our previous self-contained installer.
+# This also makes an upgrade to the light edition actually free their disk space.
+$cleanup = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+foreach ($pack in 'microsoft.netcore.app.runtime.win-x64', 'microsoft.windowsdesktop.app.runtime.win-x64') {
+    $runtimeRoot = Join-Path $env:NUGET_PACKAGES ($pack + '/' + $RuntimeVersion + '/runtimes/win-x64')
+    if (Test-Path -LiteralPath $runtimeRoot) {
+        Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File | Where-Object { $_.Extension -in '.dll', '.exe' } | ForEach-Object {
+            $name = $_.Name
+            if ($_.Directory.Name -match '^[a-z]{2,3}(-[A-Za-z]{2,4})?$') { $name = $_.Directory.Name + '\' + $name }
+            [void]$cleanup.Add($name)
+        }
+    }
+}
+if ($FrameworkDependent -and $cleanup.Count -eq 0) { throw 'Runtime inventory missing; build the self-contained edition first so upgrades can clean up safely.' }
+$cleanupFile = Join-Path $buildRoot 'runtime-cleanup.iss'
+$cleanupLines = @('procedure RemoveObsoleteRuntime();', 'begin')
+foreach ($name in @($cleanup | Sort-Object)) {
+    if ($FrameworkDependent -or $developmentFiles -contains ([IO.Path]::GetFileName($name)) -or $name -like 'mscordaccore_*.dll' -or $name -like '*\System.Windows.Forms.Design*.resources.dll') {
+        $cleanupLines += ('  DeleteFile(ExpandConstant(''{app}\' + $name + '''));')
+    }
+}
+$cleanupLines += 'end;'
+$cleanupLines | Set-Content -LiteralPath $cleanupFile -Encoding UTF8
+$filename = 'ScreenNoteLite-' + $version + $(if ($FrameworkDependent) { '-Light' } else { '' }) + '-Setup-x64'
+$defines = @(('/DAppVersion=' + $version), ('/DPayloadDir=' + $payload), ('/DChineseMessages=' + $chineseMessages), ('/DRuntimeCleanup=' + $cleanupFile), ('/DOutputName=' + $filename))
+if ($FrameworkDependent) { $defines += '/DLightBuild=1' }
+& $CompilerPath @defines ('/O' + $outputRoot) (Join-Path $projectRoot 'installer/ScreenNoteLite.iss') *> $compileLog
 if ($LASTEXITCODE -ne 0) { Get-Content -LiteralPath $compileLog -Tail 25; throw 'Windows installer compilation failed.' }
-$installer = Join-Path $outputRoot ('ScreenNoteLite-' + $version + '-Setup-x64.exe')
+$installer = Join-Path $outputRoot ($filename + '.exe')
 if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'The installer file was not produced.' }
 $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
 [IO.File]::WriteAllText($installer + '.sha256', $hash + '  ' + [IO.Path]::GetFileName($installer) + "`n", [Text.UTF8Encoding]::new($false))
-$report = [ordered]@{ status = 'built'; version = $version; architecture = 'win-x64'; runtime = $RuntimeVersion; selfContained = $true; file = $installer; bytes = (Get-Item -LiteralPath $installer).Length; sha256 = $hash; payloadFiles = $files.Count; payloadBytes = ($files | Measure-Object Length -Sum).Sum; compiler = [Diagnostics.FileVersionInfo]::GetVersionInfo($CompilerPath).ProductVersion }
+$report = [ordered]@{ status = 'built'; version = $version; architecture = 'win-x64'; runtime = $(if ($FrameworkDependent) { 'shared .NET 10 Desktop Runtime' } else { $RuntimeVersion }); selfContained = (-not $FrameworkDependent); file = $installer; bytes = (Get-Item -LiteralPath $installer).Length; sha256 = $hash; payloadFiles = $files.Count; payloadBytes = ($files | Measure-Object Length -Sum).Sum; trimmedBytes = $trimmedBytes; payloadBytesBeforeTrim = $payloadBytesBeforeTrim; compiler = [Diagnostics.FileVersionInfo]::GetVersionInfo($CompilerPath).ProductVersion }
 $report | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $buildRoot 'build-report.json') -Encoding UTF8
 $report | ConvertTo-Json -Depth 4

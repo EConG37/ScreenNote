@@ -32,11 +32,14 @@ internal sealed class GifRecordingWindow : Window
 
     internal GifRecordingWindow(Drawing.Rectangle region, string dataDirectory)
     {
+        Style = (Style)Application.Current.FindResource(typeof(Window));
         _region = region; _dataDirectory = dataDirectory;
         Title = "拾屏 精简版 · 录制 GIF"; Icon = AppIcon.WindowImage;
-        Width = 440; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+        Width = 520; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterScreen; Topmost = true;
-        Background = Brushes.White;
+        Background = StudioUi.Brush("Canvas");
+        StudioUi.Label(_primary, "play", "开始录制");
+        _status.Foreground = StudioUi.Brush("Muted"); _status.FontSize = 13;
         var size = GifRecorder.OutputSize(region.Size);
         _status.Text = $"已选 {region.Width} × {region.Height} 像素\n生成 {size.Width} × {size.Height} · 10 帧/秒 · 包含鼠标\n倒计时 3 秒后开始，最长 60 秒或约 50 MB。";
         _content.Children.Add(_heading); _content.Children.Add(_status);
@@ -44,8 +47,10 @@ internal sealed class GifRecordingWindow : Window
         if (TryFindResource("PrimaryButton") is Style primaryStyle) _primary.Style = primaryStyle;
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = new Button { Content = "取消", Margin = new Thickness(0, 0, 8, 0) };
+        StudioUi.Label(cancel, "close", "取消");
         cancel.Click += (_, _) => Close();
         var compressExisting = new Button { Content = "压缩已有 GIF", Margin = new Thickness(0, 0, 8, 0) };
+        StudioUi.Label(compressExisting, "trim", "压缩已有 GIF");
         compressExisting.Click += async (_, _) =>
         {
             if (_running) return;
@@ -53,7 +58,7 @@ internal sealed class GifRecordingWindow : Window
             if (picker.ShowDialog(this) == true) { _operation = CompressExistingAsync(picker.FileName); await _operation; }
         };
         buttons.Children.Add(compressExisting); buttons.Children.Add(cancel); buttons.Children.Add(_primary); _content.Children.Add(buttons);
-        Content = new Border { Background = Brushes.White, Padding = new Thickness(24), Child = _content };
+        var surface = StudioUi.Panel(_content, new Thickness(24)); surface.Margin = new Thickness(16); Content = surface;
         _primary.Click += async (_, _) =>
         {
             if (_running) { _primary.IsEnabled = false; _stop?.Cancel(); return; }
@@ -80,7 +85,7 @@ internal sealed class GifRecordingWindow : Window
             return;
         }
         _stop?.Dispose(); _stop = new CancellationTokenSource();
-        _running = true; _discard = false; _primary.Content = "取消倒计时";
+        _running = true; _discard = false; StudioUi.Label(_primary, StudioUi.ActionIcon("取消倒计时"), "取消倒计时");
         try
         {
             for (var seconds = 3; seconds > 0; seconds--)
@@ -90,7 +95,7 @@ internal sealed class GifRecordingWindow : Window
                 await Task.Delay(1000, _stop.Token);
             }
             _recording = true; _heading.Text = "● 正在录制";
-            _primary.Content = "停止并复制";
+            StudioUi.Label(_primary, StudioUi.ActionIcon("停止并复制"), "停止并复制");
             var progress = new Progress<GifRecordingProgress>(value =>
             {
                 if (_recording) _status.Text = $"{value.Elapsed:mm\\:ss} / 01:00  ·  {value.Bytes / 1048576d:F1} MB\n点击「停止并复制」结束。控制条内按 Esc 也可停止。";
@@ -117,14 +122,14 @@ internal sealed class GifRecordingWindow : Window
         finally
         {
             _recording = false; _running = false;
-            _primary.IsEnabled = true; _primary.Content = "开始录制";
+            _primary.IsEnabled = true; StudioUi.Label(_primary, StudioUi.ActionIcon("开始录制"), "开始录制");
             if (_closeWhenStopped) Close();
         }
     }
 
     private async Task CompressResultAsync(string path)
     {
-        _heading.Text = "正在压缩 GIF"; _primary.Content = "停止压缩"; _primary.IsEnabled = true;
+        _heading.Text = "正在压缩 GIF"; StudioUi.Label(_primary, StudioUi.ActionIcon("停止压缩"), "停止压缩"); _primary.IsEnabled = true;
         try
         {
             var compressed = await GifCompressor.CompressAsync(path, Path.Combine(_dataDirectory, "recordings"), _stop!.Token,
@@ -151,7 +156,7 @@ internal sealed class GifRecordingWindow : Window
             ShowResult(); await CopyResultAsync();
         }
         catch (Exception ex) { _heading.Text = "压缩未完成"; _status.Text = ex.Message; }
-        finally { _running = false; _primary.IsEnabled = true; _primary.Content = "开始录制"; if (_closeWhenStopped) Close(); }
+        finally { _running = false; _primary.IsEnabled = true; StudioUi.Label(_primary, StudioUi.ActionIcon("开始录制"), "开始录制"); if (_closeWhenStopped) Close(); }
     }
 
     private void ShowResult()
@@ -175,25 +180,28 @@ internal sealed class GifRecordingWindow : Window
             catch (Exception ex) { _status.Text = "拖拽未完成：" + ex.Message; }
         };
         _content.Children.Add(thumbnail);
-        _content.Children.Add(new TextBlock { Text = "首帧预览 · 拖入聊天窗口可发送完整动图", Foreground = Brushes.Gray, FontSize = 11, Margin = new Thickness(0, 7, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
+        _content.Children.Add(new TextBlock { Text = "首帧预览 · 拖入聊天窗口可发送完整动图", Foreground = StudioUi.Brush("Muted"), FontSize = 13, Margin = new Thickness(0, 7, 0, 14), HorizontalAlignment = HorizontalAlignment.Center });
         var actions = new WrapPanel();
         void Add(string title, Action action)
         {
             var button = new Button { Content = title, Margin = new Thickness(0, 0, 7, 8), Padding = new Thickness(11, 7, 11, 7) };
+            StudioUi.Label(button, StudioUi.ActionIcon(title), title);
             button.Click += (_, _) => { try { action(); } catch (Exception ex) { _status.Text = ex.Message; } };
             actions.Children.Add(button);
         }
         var copy = new Button { Content = "复制 GIF", Margin = new Thickness(0, 0, 7, 8) };
+        StudioUi.Label(copy, "copy", "复制 GIF"); copy.Style = (Style)FindResource("PrimaryButton");
         copy.Click += async (_, _) => { copy.IsEnabled = false; try { await CopyResultAsync(); } finally { copy.IsEnabled = true; } };
         actions.Children.Add(copy);
         Add("查看动画", () => Process.Start(new ProcessStartInfo(result.Path) { UseShellExecute = true }));
         var compress = new Button { Content = "压缩 GIF", Margin = new Thickness(0, 0, 7, 8) };
+        StudioUi.Label(compress, "trim", "压缩 GIF");
         compress.Click += async (_, _) =>
         {
             if (_running) { _stop?.Cancel(); return; }
-            compress.Content = "停止压缩";
+            StudioUi.Label(compress, "trim", "停止压缩");
             try { _operation = CompressExistingAsync(result.Path); await _operation; }
-            finally { compress.Content = "压缩 GIF"; }
+            finally { StudioUi.Label(compress, "trim", "压缩 GIF"); }
         };
         actions.Children.Add(compress);
         Add("另存为", () =>

@@ -37,20 +37,22 @@ internal static class VideoRecorder
     });
 
     internal static Task<VideoRecordingResult> RecordAsync(Drawing.Rectangle region, RecordOptions options,
-        string dataDirectory, CancellationToken stop, IProgress<VideoRecordingProgress>? progress = null) => Task.Run(() =>
+        string dataDirectory, CancellationToken stop, IProgress<VideoRecordingProgress>? progress = null,
+        Func<bool>? isPaused = null) => Task.Run(() =>
     {
         var size = OutputSize(region.Size, options.MaximumEdge);
         using var capture = new RegionCapture(region, size);
         using var audio = new AudioCaptureSession(options.SystemSound, options.Microphone);
         return Record(capture.NextFrame, size, dataDirectory, audio, stop, progress,
-            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond);
+            options.MaximumDuration, options.RecordingBytes, options.FramesPerSecond, isPaused);
     });
 
     // The injectable frame source lets the complete recording path be tested without reading the desktop.
     // All Media Foundation calls stay on this thread: the sink writer's COM wrappers are apartment-bound.
     internal static VideoRecordingResult Record(Func<BitmapSource> nextFrame, Drawing.Size size, string dataDirectory,
         AudioCaptureSession? audio, CancellationToken stop, IProgress<VideoRecordingProgress>? progress,
-        TimeSpan maximumDuration, long maximumBytes, int framesPerSecond = FramesPerSecond)
+        TimeSpan maximumDuration, long maximumBytes, int framesPerSecond = FramesPerSecond,
+        Func<bool>? isPaused = null)
     {
         var fps = Math.Clamp(framesPerSecond, 1, 120);
         stop.ThrowIfCancellationRequested();
@@ -67,7 +69,11 @@ internal static class VideoRecorder
             var audioChunks = new ConcurrentQueue<byte[]>();
             var audioSamples = 0L;
             var audioRate = audio?.SampleRate ?? 48000;
-            if (audio?.Active == true) audio.BeginPump((pcm, _) => audioChunks.Enqueue(pcm));
+            if (audio?.Active == true) audio.BeginPump((pcm, _) =>
+            {
+                // Do not accumulate minutes of audio while the recording is paused.
+                if (isPaused?.Invoke() != true) audioChunks.Enqueue(pcm);
+            });
             void DrainAudio()
             {
                 while (audioChunks.TryDequeue(out var pcm))
@@ -87,14 +93,24 @@ internal static class VideoRecorder
             var pendingFrame = nextFrame();
             var poster = pendingFrame;
             var firstTicks = clock.Elapsed.Ticks;
+            var pausedTicks = 0L;
             var pendingTime = 0L;
             try
             {
                 while (true)
                 {
-                    var wait = TimeSpan.FromTicks(frameTicks * (frames + 1)) - clock.Elapsed;
+                    if (isPaused?.Invoke() == true)
+                    {
+                        DrainAudio();
+                        var held = clock.Elapsed.Ticks;
+                        while (isPaused() && !stop.IsCancellationRequested) stop.WaitHandle.WaitOne(40);
+                        pausedTicks += clock.Elapsed.Ticks - held;
+                        continue;
+                    }
+                    var active = clock.Elapsed.Ticks - firstTicks - pausedTicks;
+                    var wait = TimeSpan.FromTicks(frameTicks * (frames + 1) - active);
                     if (wait > TimeSpan.Zero) stop.WaitHandle.WaitOne(wait);
-                    var now = clock.Elapsed.Ticks - firstTicks;
+                    var now = clock.Elapsed.Ticks - firstTicks - pausedTicks;
                     var finishing = stop.IsCancellationRequested || now >= maximumDuration.Ticks;
                     var next = finishing ? null : nextFrame();
                     DrainAudio();
