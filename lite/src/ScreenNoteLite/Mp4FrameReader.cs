@@ -35,7 +35,9 @@ internal sealed class Mp4FrameReader : IDisposable
         try
         {
             Mf.Check(Mf.MFCreateAttributes(out attributes, 2), "MFCreateAttributes");
-            Mf.Set(attributes, Mf.Keys.EnableVideoProcessing, 1);
+            // The legacy RGB converter can report a tight stride while returning
+            // frames padded to the H.264 coded dimensions.
+            Mf.Set(attributes, Mf.Keys.EnableAdvancedVideoProcessing, 1);
             Mf.Check(Mf.MFCreateSourceReaderFromURL(path, attributes, out reader), "MFCreateSourceReaderFromURL");
             Mf.ReleaseCom(attributes); attributes = null;
 
@@ -55,8 +57,7 @@ internal sealed class Mp4FrameReader : IDisposable
             // stride can put the source reader's YUV converter on an invalid layout.
             Mf.Check(reader.SetCurrentMediaType(Mf.Reader.FirstVideoStream, 0, output), "SetCurrentMediaType");
 
-            // MF may honor the requested top-down stride or fall back to the bottom-up
-            // RGB32 default; the negotiated type decides whether rows need flipping.
+            // The media type describes the layout only for a linear buffer.
             Mf.Check(reader.GetCurrentMediaType(Mf.Reader.FirstVideoStream, out current), "GetCurrentMediaType");
             var stride = Mf.TryGetInt32(current, Mf.Keys.DefaultStride);
             var bottomUp = stride is null or < 0;
@@ -138,26 +139,45 @@ internal sealed class Mp4FrameReader : IDisposable
         try
         {
             Mf.Check(sample.ConvertToContiguousBuffer(out buffer), "ConvertToContiguousBuffer");
-            Mf.Check(buffer.Lock(out var source, out _, out var length), "Lock");
-            try
-            {
-                var rowBytes = _width * 4;
-                if ((long)(_height - 1) * _pitch + rowBytes > length)
-                    throw new InvalidOperationException("解码画面的长度与视频尺寸不一致。");
-                // Bottom-up DIBs store the last row first; top-down rows copy straight across.
-                for (var y = 0; y < _height; y++)
-                {
-                    var offset = (_bottomUp ? _height - 1 - y : y) * _pitch;
-                    Marshal.Copy(source + offset, _pixels, y * rowBytes, rowBytes);
-                }
-            }
-            finally { buffer.Unlock(); }
+            CopyFramePixels(buffer, _pixels);
         }
         finally { Mf.ReleaseCom(buffer); }
         for (var i = 3; i < _pixels.Length; i += 4) _pixels[i] = 255;
         var image = BitmapSource.Create(_width, _height, 96, 96, PixelFormats.Bgra32, null, _pixels, _width * 4);
         image.Freeze();
         return image;
+    }
+
+    private void CopyFramePixels(Mf.IMFMediaBuffer buffer, byte[] pixels)
+    {
+        var rowBytes = _width * 4;
+        if (buffer is Mf.IMF2DBuffer surface)
+        {
+            // Lock2D points to the displayed top row and returns the actual signed stride.
+            Mf.Check(surface.Lock2D(out var topRow, out var pitch), "Lock2D");
+            try
+            {
+                if (Math.Abs((long)pitch) < rowBytes)
+                    throw new InvalidOperationException("解码画面的行宽与视频尺寸不一致。");
+                for (var y = 0; y < _height; y++)
+                    Marshal.Copy(topRow + y * pitch, pixels, y * rowBytes, rowBytes);
+            }
+            finally { surface.Unlock2D(); }
+            return;
+        }
+
+        Mf.Check(buffer.Lock(out var source, out _, out var length), "Lock");
+        try
+        {
+            if ((long)(_height - 1) * _pitch + rowBytes > length)
+                throw new InvalidOperationException("解码画面的长度与视频尺寸不一致。");
+            for (var y = 0; y < _height; y++)
+            {
+                var offset = (_bottomUp ? _height - 1 - y : y) * _pitch;
+                Marshal.Copy(source + offset, pixels, y * rowBytes, rowBytes);
+            }
+        }
+        finally { buffer.Unlock(); }
     }
 
     public void Dispose()

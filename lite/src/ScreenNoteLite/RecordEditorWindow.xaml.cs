@@ -35,8 +35,10 @@ public partial class RecordEditorWindow : Window
     private TimeSpan _end;
     private bool _ready;
     private bool _closed;
+    private bool _exporting;
 
     internal string? ResultPath { get; private set; }
+    internal bool CopiedToClipboard { get; private set; }
 
     internal RecordEditorWindow(string path)
     {
@@ -57,6 +59,7 @@ public partial class RecordEditorWindow : Window
         RefreshFormat();
         Layout();
         Loaded += async (_, _) => { InitializePlayback(); await LoadFilmstripAsync(); };
+        Closing += (_, e) => e.Cancel |= _exporting;
     }
 
     private async Task LoadFilmstripAsync()
@@ -499,7 +502,7 @@ public partial class RecordEditorWindow : Window
         var folder = IOPath.GetDirectoryName(_source.Path) ?? App.DataDirectory;
         var path = IOPath.Combine(folder, "拾屏-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-"
             + Guid.NewGuid().ToString("N")[..8] + (gif ? ".gif" : ".mp4"));
-        if (!await ExportToAsync(path, copyToClipboard: true)) return;
+        if (!await ExportToAsync(path)) return;
         DialogResult = true;
     }
 
@@ -515,11 +518,11 @@ public partial class RecordEditorWindow : Window
             OverwritePrompt = true,
         };
         if (dialog.ShowDialog(this) != true) return;
-        if (!await ExportToAsync(dialog.FileName, copyToClipboard: true)) return;
+        if (!await ExportToAsync(dialog.FileName)) return;
         DialogResult = true;
     }
 
-    private async Task<bool> ExportToAsync(string path, bool copyToClipboard)
+    private async Task<bool> ExportToAsync(string path)
     {
         PausePreview();
         PlaybackControls.IsEnabled = false;
@@ -531,37 +534,48 @@ public partial class RecordEditorWindow : Window
         var fps = gif ? IntTag(GifFps, 15) : IntTag(VideoFps, 30);
         var target = gif ? IntTag(GifTarget, 10 * 1024 * 1024) : 0;
 
+        _exporting = true;
         SaveButton.IsEnabled = false;
-        if (SaveAsButton != null) SaveAsButton.IsEnabled = false;
+        SaveAsButton.IsEnabled = false;
         GifChoice.IsEnabled = false;
         VideoChoice.IsEnabled = false;
         StatusText.Text = "正在导出…";
         var progress = new Progress<string>(text => StatusText.Text = text);
+        long size;
         try
         {
-            var size = await Task.Run(() => gif
+            size = await Task.Run(() => gif
                 ? ExportGif(_source.Path, path, start, end, crop, fps, target, progress)
                 : ExportVideo(_source.Path, path, start, end, crop, fps, progress));
-            ResultPath = path;
-            var copied = copyToClipboard && TryCopyFile(path);
-            StatusText.Text = (copied ? "已复制到剪贴板，" : "已保存，")
-                + IOPath.GetFileName(path) + " · " + (size / 1024.0 / 1024.0).ToString("0.0") + " MB";
-            return true;
         }
         catch (Exception error)
         {
+            StatusText.Text = "导出失败：" + error.Message;
+            MessageBox.Show(this, "无法保存文件。\n\n" + path + "\n\n" + error.Message,
+                "导出失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            _exporting = false;
             PlaybackControls.IsEnabled = true;
             SetCropEditingEnabled(true);
             SaveButton.IsEnabled = true;
-            if (SaveAsButton != null) SaveAsButton.IsEnabled = true;
+            SaveAsButton.IsEnabled = true;
             GifChoice.IsEnabled = true;
             VideoChoice.IsEnabled = true;
-            StatusText.Text = "导出失败：" + error.Message;
-            return false;
         }
+
+        ResultPath = path;
+        CopiedToClipboard = TryCopyFile(path);
+        var detail = CopiedToClipboard ? "文件已保存并复制到剪贴板，可直接粘贴。" : "文件已保存，复制到剪贴板失败。";
+        StatusText.Text = detail;
+        MessageBox.Show(this, detail + "\n\n" + path + "\n" + (size / 1024.0 / 1024.0).ToString("0.0") + " MB",
+            "导出成功", MessageBoxButton.OK, CopiedToClipboard ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        return true;
     }
 
-    internal static bool TryCopyFile(string path)
+    private static bool TryCopyFile(string path)
     {
         try
         {

@@ -62,6 +62,7 @@ internal static class MediaRoundtrip
             var reader = sourceType.GetField("_mp4", PrivateInstance)!.GetValue(opened)!;
             foreach (var second in new[] { .9, .1, 1.5, 0.0 })
                 Check(reader.GetType().GetMethod("ReadAt", PrivateInstance)!.Invoke(reader, new object[] {TimeSpan.FromSeconds(second)}) is BitmapSource, "Repeated forward/backward seeks remain usable");
+            CheckUnalignedFrames(directory, sourceType, editor);
             File.WriteAllText(Path.Combine(directory, "result.txt"), "PASS: " + _checks + " media round-trip checks.");
             return 0;
         }
@@ -73,19 +74,55 @@ internal static class MediaRoundtrip
         }
     }
 
-    private static void Fixture(string path, bool audio)
+    private static void CheckUnalignedFrames(string directory, Type sourceType, Type editor)
+    {
+        const int width = 1018, height = 604;
+        var source = Path.Combine(directory, "unaligned.mp4");
+        Fixture(source, true, width, height);
+        var open = sourceType.GetMethod("Open", PrivateStatic)!;
+        var poster = sourceType.GetProperty("Poster", PrivateInstance)!;
+        using (var recording = (IDisposable)open.Invoke(null, new object[] { source })!)
+            CheckPattern((BitmapSource)poster.GetValue(recording)!, 0, 0, "Unaligned source decodes without shifted rows");
+
+        foreach (var crop in new[] { new Int32Rect(0, 0, width, height), new Int32Rect(16, 12, 958, 574) })
+        {
+            var output = Path.Combine(directory, "unaligned-" + crop.Width + ".mp4");
+            editor.GetMethod("ExportVideo", PrivateStatic)!.Invoke(null,
+                new object?[] { source, output, TimeSpan.FromSeconds(.25), TimeSpan.FromSeconds(1.25), crop, 30, null });
+            using var exported = (IDisposable)open.Invoke(null, new object[] { output })!;
+            var frame = (BitmapSource)poster.GetValue(exported)!;
+            Check(frame.PixelWidth == crop.Width && frame.PixelHeight == crop.Height && Tracks(output).Contains("soun"),
+                "Unaligned export preserves requested dimensions and audio: " + crop.Width);
+            CheckPattern(frame, crop.X, crop.Y, "Unaligned export preserves pixel positions: " + crop.Width);
+        }
+
+        static void CheckPattern(BitmapSource frame, int offsetX, int offsetY, string description)
+        {
+            foreach (var y in new[] { 40, 180, 270, 350, 440, 560 })
+            {
+                var left = Pixel(frame, width / 2 - 16 - offsetX, y - offsetY);
+                var right = Pixel(frame, width / 2 + 16 - offsetX, y - offsetY);
+                var channel = y < height / 2 ? 2 : 0;
+                Check(left[channel] > 200 && left[2 - channel] < 45 && left[1] < 45
+                    && right[1] > 200 && right[0] < 45 && right[2] < 45, description + ", row " + y);
+            }
+        }
+    }
+
+    private static void Fixture(string path, bool audio, int width = 128, int height = 96)
     {
         var type = AppAssembly.GetType("ScreenNote.Mp4Writer")!;
-        var writer = (IDisposable)Activator.CreateInstance(type, PrivateInstance, null, new object[] {path, 128, 96, 30, audio ? 48000 : 0, 24000}, null)!;
+        var writer = (IDisposable)Activator.CreateInstance(type, PrivateInstance, null, new object[] {path, width, height, 30, audio ? 48000 : 0, 24000}, null)!;
         try
         {
             var visual = new DrawingVisual();
             using (var draw = visual.RenderOpen())
             {
-                draw.DrawRectangle(Brushes.Red, null, new Rect(0, 0, 128, 48));
-                draw.DrawRectangle(Brushes.Blue, null, new Rect(0, 48, 128, 48));
+                draw.DrawRectangle(Brushes.Red, null, new Rect(0, 0, width, height / 2));
+                draw.DrawRectangle(Brushes.Blue, null, new Rect(0, height / 2, width, height / 2));
+                draw.DrawRectangle(Brushes.Lime, null, new Rect(width / 2, 0, width / 2, height));
             }
-            var frame = new RenderTargetBitmap(128, 96, 96, 96, PixelFormats.Pbgra32); frame.Render(visual); frame.Freeze();
+            var frame = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); frame.Render(visual); frame.Freeze();
             var video = type.GetMethod("WriteVideoFrame", PrivateInstance, null, new[] {typeof(BitmapSource), typeof(long), typeof(long)}, null)!;
             var sound = type.GetMethod("WriteAudioPcm", PrivateInstance)!;
             for (var index = 0; index < 60; index++)

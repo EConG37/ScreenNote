@@ -130,7 +130,7 @@ internal static class Mf
         internal static readonly Guid EnableHardwareTransforms = new("a634a91c-822b-41b9-a494-4de4643612b0");
         internal static readonly Guid DisableThrottling = new("08b845d8-2b74-4afe-9d53-be16d2d5ae4f");
         // Lets the source reader convert decoded frames to RGB32 for editing.
-        internal static readonly Guid EnableVideoProcessing = new("fb394f3d-ccf1-42ee-bbb3-f9b845d5681d");
+        internal static readonly Guid EnableAdvancedVideoProcessing = new("0f81da2c-b537-4672-a8b2-a681b17307a3");
         internal static readonly Guid DefaultStride = new("644b4e48-1e02-4516-b0eb-c01ca9d49ac6");
         // Forces the MP4 muxer regardless of the output file extension (recordings start as .partial).
         internal static readonly Guid TranscodeContainerType = new("150ff23f-4abc-478b-ac4f-e1916fba1cca");
@@ -222,6 +222,13 @@ internal static class Mf
         [PreserveSig] int GetCurrentLength(out uint currentLength);
         [PreserveSig] int SetCurrentLength(uint currentLength);
         [PreserveSig] int GetMaxLength(out uint maxLength);
+    }
+
+    [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("7dc9d5f9-9ed9-44ec-9bbf-0600bb589fbb")]
+    internal interface IMF2DBuffer
+    {
+        [PreserveSig] int Lock2D(out nint scanline0, out int pitch);
+        [PreserveSig] int Unlock2D();
     }
 
     [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("c40a00f2-b93a-4d80-ae8c-5a1c634f58e4")]

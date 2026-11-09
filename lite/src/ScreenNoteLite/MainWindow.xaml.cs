@@ -265,8 +265,9 @@ public partial class MainWindow : Window
         var editor = new RecordEditorWindow(outcome.Path);
         if (editor.ShowDialog() == true && editor.ResultPath is { Length: > 0 } exported)
         {
-            RecordEditorWindow.TryCopyFile(exported);
-            SetStatus("已复制 " + Path.GetFileName(exported) + "，可直接粘贴");
+            SetStatus(editor.CopiedToClipboard
+                ? "已复制 " + Path.GetFileName(exported) + "，可直接粘贴"
+                : "已导出 " + Path.GetFileName(exported) + "，复制到剪贴板失败");
         }
         else
             SetStatus("录制已保留：" + Path.GetFileName(outcome.Path));
