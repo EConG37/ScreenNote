@@ -6,7 +6,7 @@ Windows 桌面截图与录制工具：区域截图、标注、滚动长图、多
 
 ## 下载与安装
 
-当前版本为 **1.2.8**，在 [GitHub Releases 下载测试版](https://github.com/EConG37/ScreenNote/releases/tag/v1.2.8-lite)。本地构建文件输出到 `lite/releases/1.2.8/`。
+当前版本为 **1.2.8**，在 [GitHub Releases 下载正式版](https://github.com/EConG37/ScreenNote/releases/tag/v1.2.8-lite)。本地构建文件输出到 `lite/releases/1.2.8/`。
 
 - **轻量安装包** `ScreenNoteLite-1.2.8-Light-Setup-x64.exe`：约 2.22 MiB，使用电脑已有的 x64 .NET 10 Desktop Runtime。缺少运行环境时会明确提示并终止安装。适合已装 .NET 10 的电脑；从自带环境版本升级时会清理旧运行库，保留截图资料。
 - **自带运行环境安装包** `ScreenNoteLite-1.2.8-Setup-x64.exe`：约 47 MB，安装后约 149 MiB（含卸载器，不含个人资料），无需另外安装 .NET。
