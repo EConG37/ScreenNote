@@ -166,6 +166,13 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                   <CheckBox x:Name="LoopPreview" Style="{StaticResource EditorToggle}" IsChecked="True" Content="循环" ToolTip="循环播放所选片段"/>
                   <CheckBox x:Name="MutePreview" Style="{StaticResource EditorSound}" Checked="MutePreview_Changed" Unchecked="MutePreview_Changed" ToolTip="开关预览声音，不改变导出文件" AutomationProperties.Name="预览静音"/>
+                  <TextBlock Text="倍速" Style="{StaticResource EditorSmall}" Margin="14,0,6,0"/>
+                  <ComboBox x:Name="SpeedChoice" Width="88" SelectionChanged="SpeedChoice_Changed" ToolTip="变速预览，导出按同样倍速" AutomationProperties.Name="预览倍速">
+                    <ComboBoxItem Content="1× 原速" Tag="1" IsSelected="True"/>
+                    <ComboBoxItem Content="2×" Tag="2"/>
+                    <ComboBoxItem Content="4×" Tag="4"/>
+                    <ComboBoxItem Content="8×" Tag="8"/>
+                  </ComboBox>
                 </StackPanel>
                 <TextBlock x:Name="CropText" Grid.Column="4" Style="{StaticResource EditorSmall}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" Margin="12,0,0,0"/>
               </Grid>
@@ -201,7 +208,7 @@
                   <TextBlock Text="帧率" Style="{StaticResource EditorSmall}" Margin="0,0,6,0"/>
                   <ComboBox x:Name="GifFps" Width="104" SelectionChanged="Settings_Changed" AutomationProperties.Name="GIF 帧率"><ComboBoxItem Content="10 帧/秒" Tag="10"/><ComboBoxItem Content="15 帧/秒" Tag="15" IsSelected="True"/><ComboBoxItem Content="20 帧/秒" Tag="20"/></ComboBox>
                   <TextBlock Text="体积" Style="{StaticResource EditorSmall}" Margin="12,0,6,0"/>
-                  <ComboBox x:Name="GifTarget" Width="159" SelectionChanged="Settings_Changed" AutomationProperties.Name="GIF 体积目标"><ComboBoxItem Content="≤ 10 MB · 微信" Tag="10485760" IsSelected="True"/><ComboBoxItem Content="不压缩" Tag="0"/></ComboBox>
+                  <ComboBox x:Name="GifTarget" Width="159" SelectionChanged="Settings_Changed" AutomationProperties.Name="GIF 体积目标"><ComboBoxItem Content="≤ 10 MB · 微信" Tag="10485760" IsSelected="True"/><ComboBoxItem Content="≤ 20 MB · 公众号" Tag="20971520"/><ComboBoxItem Content="不压缩" Tag="0"/></ComboBox>
                 </StackPanel>
                 <StackPanel x:Name="VideoPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                   <TextBlock Text="帧率" Style="{StaticResource EditorSmall}" Margin="0,0,6,0"/>

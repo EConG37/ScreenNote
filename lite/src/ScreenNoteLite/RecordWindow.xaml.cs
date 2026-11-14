@@ -64,8 +64,14 @@ public partial class RecordWindow : Window
             return RecordOptions.Video(fps, SystemSoundBox?.IsChecked == true, MicrophoneBox?.IsChecked == true);
         }
         var gifFps = Number(GifFps, 15);
-        var wechat = (GifTarget.SelectedItem as ComboBoxItem)?.Tag as string != "raw";
-        return RecordOptions.Gif(gifFps, wechat);
+        var targetTag = (GifTarget.SelectedItem as ComboBoxItem)?.Tag as string;
+        var target = targetTag switch
+        {
+            "raw" => 0L,
+            "official" => RecordOptions.OfficialAccountBytes,
+            _ => RecordOptions.WeChatBytes,
+        };
+        return RecordOptions.Gif(gifFps, target);
     }
 
     private static int Number(ComboBox box, int fallback) =>

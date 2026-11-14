@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -10,7 +11,8 @@ public partial class RecordEditorWindow
 {
     private readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private readonly Stopwatch _gifPreviewClock = new();
-    private TimeSpan _previewPosition, _gifPreviewAnchor;
+    private TimeSpan _previewPosition, _gifPreviewAnchor, _videoSeekTarget;
+    private int _previewRate = 1;
     private bool _playbackInitialized, _previewReady, _previewPlaying, _syncingPlayback;
     private bool _seekingPreview, _resumeAfterSeek;
 
@@ -18,6 +20,7 @@ public partial class RecordEditorWindow
     {
         if (_playbackInitialized || _closed) return;
         _playbackInitialized = true;
+        _previewRate = SelectedSpeed();
         _previewTimer.Tick += PreviewTick;
         MutePreview.Visibility = _source.Mode == RecordMode.Video ? Visibility.Visible : Visibility.Collapsed;
         UpdatePreviewRange();
@@ -84,7 +87,14 @@ public partial class RecordEditorWindow
         _previewPlaying = true;
         _gifPreviewAnchor = _previewPosition;
         _gifPreviewClock.Restart();
-        if (_source.Mode == RecordMode.Video) VideoPreview.Play();
+        if (_source.Mode == RecordMode.Video && _previewRate > 1)
+        {
+            // Fast preview is clock-driven: pause the native player and step frames by seeking.
+            VideoPreview.Pause();
+            _videoSeekTarget = _previewPosition;
+            VideoPreview.Position = _previewPosition;
+        }
+        else if (_source.Mode == RecordMode.Video) VideoPreview.Play();
         UpdatePlayAppearance();
         _previewTimer.Start();
     }
@@ -93,13 +103,47 @@ public partial class RecordEditorWindow
     {
         if (!_playbackInitialized) return;
         if (_previewPlaying)
-            _previewPosition = _source.Mode == RecordMode.Video ? VideoPreview.Position : _gifPreviewAnchor + _gifPreviewClock.Elapsed;
+            _previewPosition = _source.Mode == RecordMode.Video && _previewRate == 1
+                ? VideoPreview.Position : GifClockPosition();
         _previewPlaying = false;
         _previewTimer.Stop();
         _gifPreviewClock.Reset();
         if (_source.Mode == RecordMode.Video && _previewReady) VideoPreview.Pause();
         UpdatePlayAppearance();
         UpdatePlaybackUi();
+    }
+
+    // Previews above 1× run on a wall clock; the rate scales elapsed time into media time.
+    private TimeSpan GifClockPosition() =>
+        _gifPreviewAnchor + TimeSpan.FromTicks((long)(_gifPreviewClock.Elapsed.Ticks * _previewRate));
+
+    private void SpeedChoice_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateEstimate();
+        if (_closed || !_playbackInitialized) return;
+        var wasPlaying = _previewPlaying;
+        if (wasPlaying)
+            _previewPosition = _source.Mode == RecordMode.Video && _previewRate == 1
+                ? VideoPreview.Position : GifClockPosition();
+        _previewRate = SelectedSpeed();
+        _gifPreviewAnchor = _previewPosition;
+        if (!wasPlaying) return;
+        _gifPreviewClock.Restart();
+        if (_source.Mode == RecordMode.Video && _previewReady)
+        {
+            // Switch the native player between smooth playback and clock-driven fast stepping.
+            if (_previewRate > 1)
+            {
+                VideoPreview.Pause();
+                _videoSeekTarget = _previewPosition;
+                VideoPreview.Position = _previewPosition;
+            }
+            else
+            {
+                VideoPreview.Position = _previewPosition;
+                VideoPreview.Play();
+            }
+        }
     }
 
     private void RestartPreview_Click(object sender, RoutedEventArgs e)
@@ -111,7 +155,18 @@ public partial class RecordEditorWindow
     private void PreviewTick(object? sender, EventArgs e)
     {
         if (_closed || !_previewPlaying || _seekingPreview) return;
-        _previewPosition = _source.Mode == RecordMode.Video ? VideoPreview.Position : _gifPreviewAnchor + _gifPreviewClock.Elapsed;
+        _previewPosition = _source.Mode == RecordMode.Video && _previewRate == 1
+            ? VideoPreview.Position : GifClockPosition();
+        if (_source.Mode == RecordMode.Video && _previewRate > 1)
+        {
+            // Step the paused player along the fast clock; batch seeks so the engine can keep up.
+            if (_previewPosition < _videoSeekTarget
+                || _previewPosition - _videoSeekTarget >= TimeSpan.FromMilliseconds(400))
+            {
+                _videoSeekTarget = _previewPosition;
+                VideoPreview.Position = _previewPosition;
+            }
+        }
         if (_previewPosition >= _end)
         {
             FinishPreviewRange();
@@ -143,7 +198,11 @@ public partial class RecordEditorWindow
         if (_previewPlaying) _gifPreviewClock.Restart();
         if (_source.Mode == RecordMode.Video)
         {
-            if (_previewReady) VideoPreview.Position = _previewPosition;
+            if (_previewReady)
+            {
+                VideoPreview.Position = _previewPosition;
+                _videoSeekTarget = _previewPosition;
+            }
         }
         else PreviewImage.Source = _source.PreviewGifFrame(_previewPosition >= _end
             ? TimeSpan.FromTicks(Math.Max(_start.Ticks, _end.Ticks - 1)) : _previewPosition);

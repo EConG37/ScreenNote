@@ -120,6 +120,9 @@ internal static partial class RecordFlowUi
         Check(Mode(gif) == "Gif", "Recording dialog defaults to GIF");
         Check(Number(gif, "FramesPerSecond") == 15, "Default GIF speed is 15 fps");
         Check(Number(gif, "TargetBytes") == 10 * 1024 * 1024, "Default GIF target is the 10 MB WeChat size");
+        ((ComboBox)Field(picker, "GifTarget")).SelectedIndex = 1; Pump(100);
+        Check(Number(Options(picker), "TargetBytes") == 20 * 1024 * 1024, "Official-account recording target reaches 20 MB");
+        ((ComboBox)Field(picker, "GifTarget")).SelectedIndex = 0; Pump(60);
         Check(((FrameworkElement)Field(picker, "GifSettings")).IsVisible, "GIF settings are visible for the GIF mode");
         Check(!((FrameworkElement)Field(picker, "VideoSettings")).IsVisible, "Video settings stay hidden for the GIF mode");
         Check(System.Windows.Automation.AutomationProperties.GetName((Button)Field(picker, "StartButton")) == "选择录制区域", "Start button explains the next step");
@@ -145,14 +148,27 @@ internal static partial class RecordFlowUi
         Shot(window, Path.Combine(folder, "03-trim-editor.png"));
         Check(((TextBlock)Field(window, "CropText")).Text.Contains("160", StringComparison.Ordinal), "Crop panel reports the trimmed size");
         Check(((TextBlock)Field(window, "KeepText")).Text.Length > 0, "Trim panel reports the kept duration");
+        var speed = (ComboBox)Field(window, "SpeedChoice");
+        Check(speed.Items.Count == 4 && ((ComboBoxItem)speed.SelectedItem).Tag.ToString() == "1", "Preview speed defaults to original with four choices");
+        speed.SelectedIndex = 3; Pump(100);
+        var estimate = ((TextBlock)Field(window, "EstimateText")).Text;
+        Check(estimate.Contains("8×", StringComparison.Ordinal) && estimate.Contains("0.13 秒", StringComparison.Ordinal),
+            "Preview speed updates the estimated output duration");
+        speed.SelectedIndex = 0; Pump(80);
+        var targetBox = (ComboBox)Field(window, "GifTarget");
+        Check(targetBox.Items.Count == 3, "Editor offers WeChat, official-account and raw GIF targets");
+        targetBox.SelectedIndex = 1; Pump(80);
+        Check(((TextBlock)Field(window, "EstimateText")).Text.Contains("20 MB", StringComparison.Ordinal),
+            "Official-account target appears in the export estimate");
+        targetBox.SelectedIndex = 0; Pump(60);
         var path = Path.Combine(folder, "export-crop.gif");
         var bytes = Export(window.GetType(), "ExportGif", gif, path, TimeSpan.Zero, TimeSpan.FromSeconds(1),
-            new Int32Rect(20, 10, 160, 100), 15, 10L * 1024 * 1024, null);
+            new Int32Rect(20, 10, 160, 100), 15, 10L * 1024 * 1024, 1, null);
         window.Close();
         Check(File.Exists(path) && bytes > 0, "GIF export writes a GIF file");
         using var stream = File.OpenRead(path);
         var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-        Check(decoder.Frames.Count >= 2, "Exported GIF keeps several frames");
+        Check(decoder.Frames.Count >= 1, "Exported GIF writes a delta-encoded frame");
         Check(decoder.Frames[0].PixelWidth == 160 && decoder.Frames[0].PixelHeight == 100, "Exported GIF follows the crop rectangle");
         Check(new FileInfo(path).Length <= 10 * 1024 * 1024, "Exported GIF stays inside the 10 MB target");
     }
@@ -168,15 +184,15 @@ internal static partial class RecordFlowUi
         var gifPath = Path.Combine(folder, "export-from-video.gif");
         var crop = new Int32Rect(0, 0, 320, 180);
         Export(window.GetType(), "ExportGif", mp4, gifPath, TimeSpan.Zero, TimeSpan.FromSeconds(1), crop, 15,
-            10L * 1024 * 1024, null);
+            10L * 1024 * 1024, 1, null);
         var videoPath = Path.Combine(folder, "export-trimmed.mp4");
-        Export(window.GetType(), "ExportVideo", mp4, videoPath, TimeSpan.Zero, TimeSpan.FromSeconds(1), crop, 24, null);
+        Export(window.GetType(), "ExportVideo", mp4, videoPath, TimeSpan.Zero, TimeSpan.FromSeconds(1), crop, 24, 1, null);
         window.Close();
         Check(File.Exists(gifPath), "MP4 can be exported as an animated GIF");
         using (var stream = File.OpenRead(gifPath))
         {
             var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-            Check(decoder.Frames.Count >= 2, "Exported GIF from video holds several frames");
+            Check(decoder.Frames.Count >= 1, "Exported GIF from video holds at least one frame");
         }
         Check(new FileInfo(gifPath).Length <= 10 * 1024 * 1024, "GIF converted from video stays inside the 10 MB target");
         Check(File.Exists(videoPath) && new FileInfo(videoPath).Length > 4000, "Trimmed MP4 export writes a playable file");

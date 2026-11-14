@@ -125,6 +125,7 @@
             <ComboBox x:Name="GifTarget" Width="196" Margin="8,0,0,0" SelectedIndex="0"
                       SelectionChanged="Settings_Changed">
               <ComboBoxItem Content="微信直发（10 MB 以内）" Tag="wechat" />
+              <ComboBoxItem Content="公众号（20 MB 以内）" Tag="official" />
               <ComboBoxItem Content="保留原始体积" Tag="raw" />
             </ComboBox>
           </StackPanel>

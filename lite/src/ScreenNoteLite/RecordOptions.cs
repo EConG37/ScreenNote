@@ -11,6 +11,9 @@ internal sealed record RecordOptions(RecordMode Mode, int FramesPerSecond, int M
     /// <summary>WeChat sends and previews GIFs up to 10 MB without opening a file view.</summary>
     internal const long WeChatBytes = 10 * 1024 * 1024;
 
+    /// <summary>WeChat Official Account articles accept GIFs up to 20 MB.</summary>
+    internal const long OfficialAccountBytes = 20 * 1024 * 1024;
+
     internal bool IsVideo => Mode == RecordMode.Video;
     internal bool Compress => !IsVideo && TargetBytes > 0;
     internal bool Audio => IsVideo && (SystemSound || Microphone);
@@ -22,8 +25,8 @@ internal sealed record RecordOptions(RecordMode Mode, int FramesPerSecond, int M
     /// <summary>Hard byte ceiling while recording; the GIF stays under it before compression runs.</summary>
     internal long RecordingBytes => IsVideo ? 2L * 1024 * 1024 * 1024 : 60 * 1024 * 1024;
 
-    internal static RecordOptions Gif(int framesPerSecond = 15, bool wechat = true) =>
-        new(RecordMode.Gif, framesPerSecond, 1440, wechat ? WeChatBytes : 0);
+    internal static RecordOptions Gif(int framesPerSecond = 15, long targetBytes = WeChatBytes) =>
+        new(RecordMode.Gif, framesPerSecond, 1440, Math.Max(0, targetBytes));
 
     internal static RecordOptions Video(int framesPerSecond = 30, bool systemSound = true, bool microphone = false) =>
         new(RecordMode.Video, framesPerSecond, 1920, 0, systemSound, microphone);

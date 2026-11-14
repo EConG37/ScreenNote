@@ -469,22 +469,34 @@ public partial class RecordEditorWindow : Window
     private static int IntTag(ComboBox box, int fallback) =>
         box.SelectedItem is ComboBoxItem { Tag: string tag } && int.TryParse(tag, out var value) ? value : fallback;
 
+    private int SelectedSpeed()
+    {
+        var speed = IntTag(SpeedChoice, 1);
+        return speed is 2 or 4 or 8 ? speed : 1;
+    }
+
     private void UpdateEstimate()
     {
         if (!_ready) return;
         var crop = EffectiveCrop();
         var gif = GifChoice.IsChecked == true;
+        var speed = SelectedSpeed();
+        var duration = (_end - _start).TotalSeconds / speed;
+        var timing = speed + "× · " + duration.ToString("0.0#") + " 秒";
         if (gif)
         {
             var edge = Math.Min(1440, Math.Max(crop.Width, crop.Height));
             var size = Fit(crop, edge);
             var target = IntTag(GifTarget, 10 * 1024 * 1024);
+            var safe = GifSafeSeconds(target, IntTag(GifFps, 15));
+            var advice = target > 0 && duration > safe ? " · 超过约 " + safe + " 秒，压缩可能失败" : "";
             EstimateText.Text = "GIF " + size.Width + " × " + size.Height + " · " + IntTag(GifFps, 15) + " 帧/秒 · "
-                + (target > 0 ? "自动压到 " + target / (1024 * 1024) + " MB 内" : "不压缩");
+                + timing + " · " + (target > 0 ? "自动压到 " + target / (1024 * 1024) + " MB 内" + advice : "不压缩");
         }
         else
         {
-            EstimateText.Text = "MP4 " + crop.Width + " × " + crop.Height + " · " + IntTag(VideoFps, 30) + " 帧/秒 · H.264";
+            EstimateText.Text = "MP4 " + crop.Width + " × " + crop.Height + " · " + IntTag(VideoFps, 30)
+                + " 帧/秒 · " + timing + " · H.264";
         }
     }
 
@@ -533,6 +545,7 @@ public partial class RecordEditorWindow : Window
         var crop = EffectiveCrop();
         var fps = gif ? IntTag(GifFps, 15) : IntTag(VideoFps, 30);
         var target = gif ? IntTag(GifTarget, 10 * 1024 * 1024) : 0;
+        var speed = SelectedSpeed();
 
         _exporting = true;
         SaveButton.IsEnabled = false;
@@ -545,8 +558,8 @@ public partial class RecordEditorWindow : Window
         try
         {
             size = await Task.Run(() => gif
-                ? ExportGif(_source.Path, path, start, end, crop, fps, target, progress)
-                : ExportVideo(_source.Path, path, start, end, crop, fps, progress));
+                ? ExportGif(_source.Path, path, start, end, crop, fps, target, speed, progress)
+                : ExportVideo(_source.Path, path, start, end, crop, fps, speed, progress));
         }
         catch (Exception error)
         {
@@ -586,47 +599,39 @@ public partial class RecordEditorWindow : Window
     }
 
     private static long ExportGif(string sourcePath, string path, TimeSpan start, TimeSpan end, Int32Rect crop,
-        int fps, long targetBytes, IProgress<string>? progress)
+        int fps, long targetBytes, int speed, IProgress<string>? progress)
     {
-        var steps = new (int Edge, int Colors)[] { (1440, 256), (1080, 160), (840, 128), (640, 96), (480, 64) };
-        var attempt = 0;
-        foreach (var step in steps)
+        ValidateSpeed(speed);
+        var steps = BuildGifSteps(fps);
+        var outputSeconds = Math.Max(0.001, ToOutputTicks((end - start).Ticks, speed) / (double)TimeSpan.TicksPerSecond);
+        (int Edge, int Colors, int Fps)? measured = null;
+        var measuredBytes = 0L;
+        var shown = 0;
+        for (var index = 0; index < steps.Count; index++)
         {
-            attempt++;
+            var step = steps[index];
+            // Skip past steps that would still predict over the target; the last step always runs as the floor.
+            if (measured is { } last && targetBytes > 0 && index < steps.Count - 1
+                && PredictGifBytes(last, measuredBytes, step, crop) > targetBytes) continue;
             var size = Fit(crop, step.Edge);
             var partial = path + ".partial";
             try
             {
+                shown++;
+                var speedText = speed > 1 ? speed + "×，" : "";
+                var fpsText = step.Fps < fps ? " · " + step.Fps + " 帧/秒" : "";
                 progress?.Report(targetBytes > 0
-                    ? "正在导出 GIF（第 " + attempt + " 档：" + size.Width + " × " + size.Height + "）…"
-                    : "正在导出 GIF…");
-                using (var source = RecordSource.Open(sourcePath))
-                using (var stream = File.Create(partial))
-                {
-                    using var writer = new AnimatedGifWriter(stream, size.Width, size.Height);
-                    var nextSlot = 0L;
-                    var interval = TimeSpan.TicksPerSecond / Math.Max(1, fps);
-                    source.Read(start, end, (frame, relative) =>
-                    {
-                        if (relative.Ticks < nextSlot) return true;
-                        nextSlot += interval;
-                        var frameIndex = writer.FrameCount;
-                        var delay = Math.Max(1, (int)Math.Round((frameIndex + 1) * 100.0 / Math.Max(1, fps))
-                            - (int)Math.Round(frameIndex * 100.0 / Math.Max(1, fps)));
-                        writer.Append(Resize(Crop(frame, crop), size.Width, size.Height), delay, step.Colors);
-                        return true;
-                    });
-                    if (writer.FrameCount == 0) throw new InvalidOperationException("选定的时间段里没有可导出的画面。");
-                }
-                var length = new FileInfo(partial).Length;
+                    ? "正在导出 GIF（" + speedText + "第 " + shown + " 档：" + size.Width + " × " + size.Height + fpsText + "）…"
+                    : speed > 1 ? "正在导出 GIF（" + speed + "×）…" : "正在导出 GIF…");
+                var length = WriteGif(sourcePath, partial, start, end, crop, step, speed, targetBytes > 0 ? 8 : 0);
                 if (targetBytes <= 0 || length <= targetBytes)
                 {
                     File.Move(partial, path, true);
                     return length;
                 }
+                measured = step;
+                measuredBytes = length;
                 File.Delete(partial);
-                if (attempt == steps.Length)
-                    throw new InvalidOperationException("保持完整时长时仍超过目标大小，请缩短保留时长或选择不压缩。");
             }
             catch
             {
@@ -634,18 +639,149 @@ public partial class RecordEditorWindow : Window
                 throw;
             }
         }
-        throw new InvalidOperationException("GIF 导出失败。");
+        if (targetBytes <= 0 || measured is not { } floor) throw new InvalidOperationException("GIF 导出失败。");
+        var finalSize = Fit(crop, floor.Edge);
+        if (outputSeconds < 2)
+            throw new InvalidOperationException("已自动降到最低档（" + finalSize.Width + " × " + finalSize.Height
+                + " · " + floor.Fps + " 帧/秒）仍超过目标体积。建议改选更大的体积目标（如公众号 20 MB）或选择不压缩。");
+        var perSecond = Math.Max(1.0, measuredBytes / outputSeconds);
+        var suggested = Math.Max(1, (int)Math.Round(targetBytes / perSecond));
+        throw new InvalidOperationException("已自动降到最低档（" + finalSize.Width + " × " + finalSize.Height
+            + " · " + floor.Fps + " 帧/秒）仍超过目标体积。按当前画面复杂度，建议把保留时长缩短到约 " + suggested
+            + " 秒以内，或改选更大的体积目标 / 不压缩。");
     }
 
-    private static long ExportVideo(string sourcePath, string path, TimeSpan start, TimeSpan end, Int32Rect crop,
-        int fps, IProgress<string>? progress)
+    // Quality ladder: cut frame rate before resolution so text stays readable while bytes drop.
+    private static List<(int Edge, int Colors, int Fps)> BuildGifSteps(int fps)
     {
+        fps = Math.Max(1, fps);
+        var rates = new List<int> { fps };
+        foreach (var scale in new[] { 2.0 / 3, 0.5, 1.0 / 3 })
+        {
+            var reduced = Math.Max(4, (int)Math.Round(fps * scale));
+            if (reduced < rates[^1]) rates.Add(reduced);
+        }
+        var qualities = new (int Edge, int Colors)[] { (1440, 256), (1080, 160), (840, 128), (640, 96), (480, 64) };
+        var steps = new List<(int Edge, int Colors, int Fps)>();
+        var rateIndex = 0;
+        for (var index = 0; index < qualities.Length; index++)
+        {
+            var (edge, colors) = qualities[index];
+            steps.Add((edge, colors, rates[Math.Min(rateIndex, rates.Count - 1)]));
+            if (index >= 1 && rateIndex < rates.Count - 1)
+            {
+                rateIndex++;
+                steps.Add((edge, colors, rates[rateIndex]));
+            }
+        }
+        return steps;
+    }
+
+    private static long PredictGifBytes((int Edge, int Colors, int Fps) measured, long measuredBytes,
+        (int Edge, int Colors, int Fps) step, Int32Rect crop)
+    {
+        var measuredSize = Fit(crop, measured.Edge);
+        var stepSize = Fit(crop, step.Edge);
+        var measuredArea = (double)measuredSize.Width * measuredSize.Height;
+        var stepArea = (double)stepSize.Width * stepSize.Height;
+        if (measuredArea <= 0 || stepArea <= 0) return measuredBytes;
+        var predicted = measuredBytes * Math.Pow(stepArea / measuredArea, 0.85) * step.Fps / Math.Max(1, measured.Fps);
+        return Math.Max(1, (long)Math.Ceiling(predicted));
+    }
+
+    // One ladder attempt: delta-encoded frames so unchanged screen areas cost almost nothing.
+    private static long WriteGif(string sourcePath, string partial, TimeSpan start, TimeSpan end, Int32Rect crop,
+        (int Edge, int Colors, int Fps) step, int speed, int tolerance)
+    {
+        var size = Fit(crop, step.Edge);
+        var stride = size.Width * 4;
+        var fullPatch = new Int32Rect(0, 0, size.Width, size.Height);
+        using (var source = RecordSource.Open(sourcePath))
+        using (var stream = File.Create(partial))
+        {
+            using var writer = new AnimatedGifWriter(stream, size.Width, size.Height);
+            var nextSlot = 0L;
+            var interval = Math.Max(1, TimeSpan.TicksPerSecond / Math.Max(1, step.Fps) * speed);
+            var total = ToOutputTicks((end - start).Ticks, speed);
+            BitmapSource? pendingImage = null;
+            var pendingPatch = fullPatch;
+            var pendingPixels = new byte[stride * size.Height];
+            var currentPixels = new byte[stride * size.Height];
+            var hasPendingPixels = false;
+            var writtenCentiseconds = 0;
+            void FlushPending(long until)
+            {
+                if (pendingImage == null) return;
+                var target = (int)Math.Round(until * 100.0 / TimeSpan.TicksPerSecond);
+                var delay = Math.Max(1, target - writtenCentiseconds);
+                writer.Append(new CroppedBitmap(pendingImage, pendingPatch), delay, step.Colors,
+                    pendingPatch.X, pendingPatch.Y);
+                writtenCentiseconds += delay;
+            }
+            source.Read(start, end, (frame, relative) =>
+            {
+                if (relative.Ticks < nextSlot) return true;
+                nextSlot += interval;
+                var outputTime = ToOutputTicks(relative.Ticks, speed);
+                var current = Resize(Crop(frame, crop), size.Width, size.Height);
+                current.CopyPixels(currentPixels, stride, 0);
+                var difference = hasPendingPixels
+                    ? Difference(pendingPixels, currentPixels, size.Width, size.Height, tolerance)
+                    : fullPatch;
+                if (hasPendingPixels && difference.IsEmpty) return true; // Identical frame: delay merges into the pending patch.
+                FlushPending(outputTime);
+                pendingImage = current;
+                pendingPatch = difference;
+                (pendingPixels, currentPixels) = (currentPixels, pendingPixels);
+                hasPendingPixels = true;
+                return true;
+            });
+            if (pendingImage == null) throw new InvalidOperationException("选定的时间段里没有可导出的画面。");
+            FlushPending(total);
+            writer.Dispose();
+        }
+        return new FileInfo(partial).Length;
+    }
+
+    // Bounding box of pixels that changed more than the tolerance; empty means the frame repeats the previous one.
+    private static Int32Rect Difference(byte[] previous, byte[] current, int width, int height, int tolerance)
+    {
+        var left = width;
+        var right = -1;
+        var top = height;
+        var bottom = -1;
+        for (var y = 0; y < height; y++)
+        {
+            var row = y * width * 4;
+            for (var x = 0; x < width; x++)
+            {
+                var index = row + x * 4;
+                if (Math.Abs(previous[index] - current[index]) <= tolerance
+                    && Math.Abs(previous[index + 1] - current[index + 1]) <= tolerance
+                    && Math.Abs(previous[index + 2] - current[index + 2]) <= tolerance) continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (top > y) top = y;
+                bottom = y;
+            }
+        }
+        return right < 0 ? Int32Rect.Empty : new Int32Rect(left, top, right - left + 1, bottom - top + 1);
+    }
+
+    // Conservative "may fail" hint: ~350 KB/s of busy screen content after the ladder has done its work.
+    private static int GifSafeSeconds(long targetBytes, int fps) => Math.Max(5,
+        (int)Math.Round(targetBytes / 350_000.0 * 15.0 / Math.Max(1, fps)));
+
+    private static long ExportVideo(string sourcePath, string path, TimeSpan start, TimeSpan end, Int32Rect crop,
+        int fps, int speed, IProgress<string>? progress)
+    {
+        ValidateSpeed(speed);
         var even = new Int32Rect(crop.X & ~1, crop.Y & ~1, crop.Width & ~1, crop.Height & ~1);
         if (even.Width < 2 || even.Height < 2) throw new InvalidOperationException("裁剪区域太小，无法输出视频。");
         var partial = path + ".partial";
         try
         {
-            progress?.Report("正在导出视频（" + even.Width + " × " + even.Height + "）…");
+            progress?.Report("正在导出视频（" + (speed > 1 ? speed + "×，" : "") + even.Width + " × " + even.Height + "）…");
             using var source = RecordSource.Open(sourcePath);
             using var audio = Mp4AudioReader.OpenOptional(sourcePath);
             using var writer = new Mp4Writer(partial, even.Width, even.Height, Math.Max(1, fps), audio?.SampleRate ?? 0);
@@ -655,7 +791,7 @@ public partial class RecordEditorWindow : Window
             {
                 while (hasAudio && audioFrames!.Current.Time <= until)
                 {
-                    var chunk = audioFrames.Current;
+                    var chunk = AccelerateAudio(audioFrames.Current, audio!.SampleRate, speed);
                     writer.WriteAudioPcm(chunk.Pcm, chunk.Time, chunk.Duration);
                     hasAudio = audioFrames.MoveNext();
                 }
@@ -664,7 +800,7 @@ public partial class RecordEditorWindow : Window
             var pendingTime = 0L;
             var total = (end - start).Ticks;
             var nextSlot = 0L;
-            var interval = TimeSpan.TicksPerSecond / Math.Max(1, fps);
+            var interval = Math.Max(1, TimeSpan.TicksPerSecond / Math.Max(1, fps) * speed);
             source.Read(start, end, (frame, relative) =>
             {
                 if (relative.Ticks < nextSlot) return true;
@@ -672,7 +808,9 @@ public partial class RecordEditorWindow : Window
                 var frameTime = pending == null ? 0 : relative.Ticks;
                 if (pending != null && relative.Ticks > pendingTime)
                 {
-                    writer.WriteVideoFrame(pending, pendingTime, frameTime - pendingTime);
+                    var from = ToOutputTicks(pendingTime, speed);
+                    var to = ToOutputTicks(frameTime, speed);
+                    writer.WriteVideoFrame(pending, from, Math.Max(1, to - from));
                 }
                 pending = Crop(frame, even);
                 pendingTime = frameTime;
@@ -680,7 +818,8 @@ public partial class RecordEditorWindow : Window
                 return true;
             });
             if (pending == null) throw new InvalidOperationException("选定的时间段里没有可导出的画面。");
-            writer.WriteVideoFrame(pending, pendingTime, Math.Max(1, total - pendingTime));
+            var pendingOutputTime = ToOutputTicks(pendingTime, speed);
+            writer.WriteVideoFrame(pending, pendingOutputTime, Math.Max(1, ToOutputTicks(total, speed) - pendingOutputTime));
             WriteAudioUntil(total);
             writer.Complete();
             writer.Dispose();
@@ -693,6 +832,34 @@ public partial class RecordEditorWindow : Window
             try { if (File.Exists(partial)) File.Delete(partial); } catch { }
             throw;
         }
+    }
+
+    private static void ValidateSpeed(int speed)
+    {
+        if (speed is not (1 or 2 or 4 or 8))
+            throw new ArgumentOutOfRangeException(nameof(speed), "导出倍速仅支持 1×、2×、4× 和 8×。");
+    }
+
+    private static long ToOutputTicks(long sourceTicks, int speed) => (sourceTicks + speed / 2) / speed;
+
+    private static AudioChunk AccelerateAudio(AudioChunk chunk, int sampleRate, int speed)
+    {
+        if (speed == 1) return chunk;
+        // Resample both channels on the source timeline so chunk rounding cannot accumulate A/V drift.
+        var inputFrames = chunk.Pcm.Length / 4;
+        var sourceStart = (long)Math.Round(chunk.Time * (double)sampleRate / TimeSpan.TicksPerSecond);
+        var outputStart = (sourceStart + speed - 1) / speed;
+        var outputEnd = (sourceStart + inputFrames + speed - 1) / speed;
+        var outputFrames = (int)Math.Max(0, outputEnd - outputStart);
+        var pcm = new byte[outputFrames * 4];
+        for (var index = 0; index < outputFrames; index++)
+        {
+            var sourceIndex = (outputStart + index) * (long)speed - sourceStart;
+            Buffer.BlockCopy(chunk.Pcm, (int)sourceIndex * 4, pcm, index * 4, 4);
+        }
+        var time = outputStart * TimeSpan.TicksPerSecond / sampleRate;
+        var end = outputEnd * TimeSpan.TicksPerSecond / sampleRate;
+        return new AudioChunk(pcm, time, Math.Max(outputFrames > 0 ? 1 : 0, end - time));
     }
 
     private static BitmapSource Crop(BitmapSource image, Int32Rect crop)

@@ -58,6 +58,16 @@ internal static partial class RecordFlowUi
                 wrapped |= now < last - .05; last = now;
             }
             Check(wrapped && (bool)Field(gif, "_previewPlaying"), "GIF loops within the selected trim range");
+            // Speed preview: 8× must reach the trim end within a fraction of the real playback time.
+            ((ComboBox)Field(gif, "SpeedChoice")).SelectedIndex = 3; Pump(80);
+            Check((int)Field(gif, "_previewRate") == 8, "Speed choice applies to the preview rate");
+            ((CheckBox)Field(gif, "LoopPreview")).IsChecked = false;
+            ((Slider)Field(gif, "StartSlider")).Value = 0;
+            ((Slider)Field(gif, "EndSlider")).Value = .9;
+            Seek(gif, 0); Call(gif, "PlayPreview"); Pump(200);
+            Check(Math.Abs(((TimeSpan)Field(gif, "_previewPosition")).TotalSeconds - .9) < .06,
+                "GIF preview at 8× reaches the end within a fraction of real time");
+            ((ComboBox)Field(gif, "SpeedChoice")).SelectedIndex = 0; Pump(80);
             Shot(gif, Path.Combine(folder, "07-gif-playing.png"));
         }
         finally { gif.Close(); }
@@ -95,6 +105,16 @@ internal static partial class RecordFlowUi
             ((CheckBox)Field(video, "LoopPreview")).IsChecked = true;
             Seek(video, 1.1); Call(video, "PlayPreview"); Pump(650);
             Check((bool)Field(video, "_previewPlaying") && media.Position.TotalSeconds is >= 1.05 and <= 1.6, "MP4 preview loops the selected segment");
+            // Speed preview: 8× runs on the shared fast clock and finishes far before real time.
+            ((ComboBox)Field(video, "SpeedChoice")).SelectedIndex = 3; Pump(120);
+            Check((int)Field(video, "_previewRate") == 8, "Video preview switches to the 8× fast clock");
+            ((CheckBox)Field(video, "LoopPreview")).IsChecked = false;
+            ((Slider)Field(video, "StartSlider")).Value = 0;
+            ((Slider)Field(video, "EndSlider")).Value = 2;
+            Seek(video, 0); Call(video, "PlayPreview"); Pump(500);
+            Check(media.Position.TotalSeconds > 1.2, "Playing MP4 at 8× advances far beyond real time");
+            Call(video, "PausePreview");
+            ((ComboBox)Field(video, "SpeedChoice")).SelectedIndex = 0; Pump(80);
             Shot(video, Path.Combine(folder, "08-video-playing.png"));
         }
         finally { video.Close(); }
